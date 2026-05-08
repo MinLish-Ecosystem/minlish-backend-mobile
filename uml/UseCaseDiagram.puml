@@ -1,0 +1,117 @@
+@startuml MinLish_Mobile_UseCase
+
+left to right direction
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+
+actor "User\n(Người học)" as User
+actor "System\n(Hệ thống tự động)" as System
+
+rectangle "MinLish Mobile App" {
+  
+  package "User Management" {
+    usecase UC1 as "Đăng ký tài khoản"
+    usecase UC2 as "Đăng nhập"
+    usecase UC3 as "Xác thực email (OTP/Link)"
+    usecase UC4 as "Quên mật khẩu"
+    usecase UC5 as "Cập nhật hồ sơ"
+    usecase UC6 as "Đăng nhập Google"
+  }
+  
+  package "Vocabulary Management" {
+    usecase UC7 as "Tạo bộ từ vựng"
+    usecase UC8 as "Thêm từ vựng"
+    usecase UC9 as "Sửa từ vựng"
+    usecase UC10 as "Xóa từ vựng"
+    usecase UC13 as "Tìm kiếm từ"
+    usecase UC14 as "Gắn tag cho bộ từ"
+  }
+  
+  package "Learning Module" {
+    usecase UC15 as "Học flashcard"
+    usecase UC16 as "Đánh giá độ khó\n(Again/Hard/Good/Easy)"
+    usecase UC17 as "Xem ví dụ/collocation"
+    usecase UC18 as "Đặt mục tiêu học"
+    usecase UC19 as "Xem từ cần ôn"
+  }
+  
+  package "Practice Module" {
+    usecase UC20 as "Luyện tập trắc nghiệm"
+    usecase UC21 as "Luyện tập điền từ"
+    usecase UC22 as "Luyện tập nghe phát âm"
+    usecase UC23 as "Ôn tập theo SRS"
+  }
+  
+  package "Progress & Analytics" {
+    usecase UC24 as "Xem dashboard cá nhân"
+    usecase UC25 as "Xem biểu đồ tiến độ"
+    usecase UC26 as "Xem streak học tập"
+    usecase UC27 as "Xem accuracy rate"
+    usecase UC28 as "Ước lượng level"
+  }
+  
+  package "Notification System" {
+    usecase UC29 as "Nhận nhắc học hàng ngày"
+    usecase UC30 as "Nhận thông báo ôn tập"
+    usecase UC31 as "Cài đặt thông báo (Push/Email)"
+  }
+  
+  package "Automated Tasks (Background)" {
+    usecase UC35 as "Tính toán SRS timing"
+    usecase UC36 as "Bắn notification tự động"
+    usecase UC37 as "Cập nhật streak"
+    usecase UC38 as "Tính retention rate"
+  }
+}
+
+' User relationships
+User --> UC1
+User --> UC2
+User --> UC4
+User --> UC5
+User --> UC6
+
+User --> UC7
+User --> UC8
+User --> UC9
+User --> UC10
+User --> UC13
+User --> UC14
+
+User --> UC15
+User --> UC16
+User --> UC17
+User --> UC18
+User --> UC19
+
+User --> UC20
+User --> UC21
+User --> UC22
+User --> UC23
+
+User --> UC24
+User --> UC25
+User --> UC26
+User --> UC27
+User --> UC28
+
+User --> UC29
+User --> UC30
+User --> UC31
+
+' System relationships
+System --> UC35
+System --> UC36
+System --> UC37
+System --> UC38
+
+' Dependencies & Includes
+UC1 ..> UC3 : <<include>>
+UC15 ..> UC35 : <<include>>
+UC23 ..> UC35 : <<include>>
+
+' Triggers
+UC29 ..> UC36 : <<trigger>>
+UC30 ..> UC36 : <<trigger>>
+
+@enduml
