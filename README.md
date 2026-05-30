@@ -1,1 +1,0 @@
-# minlish-backend-mobile

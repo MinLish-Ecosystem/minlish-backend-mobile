@@ -7,9 +7,12 @@ export interface IUser extends Document {
   email: string;
   password: string;
   role: 'user' | 'admin';
-  avatar?: string;
+  avatar: string | null;
   isVerified: boolean;
-  refreshToken?: string;
+  refreshToken: string | null;
+  isActive: boolean;
+  banReason?: string;
+  bannedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
   // Method
@@ -56,6 +59,18 @@ const UserSchema = new Schema<IUser>(
       type: String,
       default: null,
       select: false, // Mặc định KHÔNG trả refreshToken trong query
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
+    banReason: {
+      type: String,
+      maxlength: [500, 'Ban reason cannot exceed 500 characters'],
+    },
+    bannedAt: {
+      type: Date,
     },
   },
   {
