@@ -8,6 +8,7 @@ import { applyReview } from "../utils/sm2";
 import { AppError } from "../utils/AppError";
 import { HttpStatus } from "../constants/httpStatus";
 import { ErrorCodes } from "../constants/errorCodes";
+import { dispatch } from './notification-dispatcher.service';
 import {
   LearningQueueFilters,
   LearningQueueResponse,
@@ -289,6 +290,21 @@ export async function submitReview(
     { upsert: true }
   );
 
+  try {
+    const streak = await calculateCurrentStreak(userId);
+    if ([7, 14, 30, 60, 100].includes(streak)) {
+      await dispatch(
+          userId,
+          'streak_milestone',
+          `🔥 ${streak} ngày học liên tiếp!`,
+          `Tuyệt vời! Bạn đã duy trì streak ${streak} ngày. Tiếp tục phát huy nhé!`,
+          { data: { screen: 'analytics', streak: streak.toString() } }
+          );
+      }
+    } catch (e) {
+      console.error('[Hook] Streak milestone check failed:', e);
+    }
+
   return {
     wordId: updatedProgress.wordId.toString(),
     previousStatus,
@@ -500,4 +516,26 @@ export async function getWordSRSProgress(
     lastReviewDate: progress?.lastReviewDate?.toISOString(),
     lastRating: progress?.lastRating
   };
+}
+
+async function calculateCurrentStreak(userId: string): Promise<number> {
+  const stats = await DailyStats.find({ userId: new Types.ObjectId(userId) })
+      .sort({ date: -1 })
+      .select('date')
+      .lean();
+  let streak = 0;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (let i = 0; i < stats.length; i++) {
+    const expected = new Date(today);
+    expected.setDate(today.getDate() - i);
+    const actual = new Date(stats[i].date);
+    actual.setHours(0, 0, 0, 0);
+    if (actual.getTime() === expected.getTime()) {
+      streak++;
+    } else {
+      break;
+    }
+  }
+  return streak;
 }

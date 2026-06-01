@@ -171,6 +171,7 @@ export const getLearningProfile = async (userId: string) => {
     timezone: profile.timezone,
     preferences: {
       pushNotification: profile.preferences.pushNotification,
+      emailNotification: profile.preferences.emailNotification,
       soundEffect: profile.preferences.soundEffect,
     },
   };
@@ -188,7 +189,7 @@ export const updateLearningProfile = async (
     reviewPerDay: number;
     reminderTime: string;
     timezone: string;
-    preferences: { pushNotification?: boolean; soundEffect?: boolean };
+    preferences: { pushNotification?: boolean; emailNotification?: boolean; soundEffect?: boolean };
   }>,
 ) => {
   // Flatten preferences để $set hoạt động đúng trên sub-doc
@@ -201,6 +202,9 @@ export const updateLearningProfile = async (
   if (data.timezone !== undefined) updateData.timezone = data.timezone;
   if (data.preferences?.pushNotification !== undefined) {
     updateData['preferences.pushNotification'] = data.preferences.pushNotification;
+  }
+  if (data.preferences?.emailNotification !== undefined) {
+    updateData['preferences.emailNotification'] = data.preferences.emailNotification;
   }
   if (data.preferences?.soundEffect !== undefined) {
     updateData['preferences.soundEffect'] = data.preferences.soundEffect;
@@ -222,6 +226,7 @@ export const updateLearningProfile = async (
     timezone: profile!.timezone,
     preferences: {
       pushNotification: profile!.preferences.pushNotification,
+      emailNotification: profile!.preferences.emailNotification,
       soundEffect: profile!.preferences.soundEffect,
     },
   };

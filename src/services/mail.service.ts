@@ -262,3 +262,72 @@ export const sendEmailChangeRequestEmail = async (
     html: otpChangeEmailTemplate(name, otp, newEmail),
   }, 'Email change OTP');
 };
+
+/**
+ * Template email nhắc học hàng ngày
+ */
+const dailyReminderTemplate = (name: string, dueCount: number, newWordsLeft: number): string => `
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Đã đến giờ học hàng ngày của bạn! - Minlish</title>
+</head>
+<body style="margin:0;padding:0;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;background-color:#f4f7fe;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:40px auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+    <tr>
+      <td style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);padding:40px;text-align:center;">
+        <h1 style="color:#fff;margin:0;font-size:28px;font-weight:700;">🎓 Minlish</h1>
+        <p style="color:rgba(255,255,255,0.85);margin:8px 0 0;font-size:14px;">Daily Reminder</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:40px;">
+        <h2 style="color:#1a1a2e;font-size:22px;margin:0 0 16px;">Chào mừng quay trở lại, \${name}! 👋</h2>
+        <p style="color:#555;line-height:1.7;margin:0 0 24px;">
+          Đã đến giờ học hàng ngày của bạn tại Minlish. Hôm nay bạn đang có các cột mốc cần hoàn thành:
+        </p>
+        <div style="background:#f8f9ff;border-radius:12px;padding:20px;margin:0 0 24px;">
+          <p style="color:#667eea;font-weight:600;margin:0 0 12px;">📊 Chỉ số học tập hôm nay:</p>
+          <ul style="color:#555;line-height:2.2;margin:0;padding-left:20px;">
+            <li>🧠 Số từ vựng đến hạn ôn tập (SRS): <strong style="color:#e63946;font-size:16px;">\${dueCount}</strong> từ</li>
+            <li>📚 Số từ mới chưa học (Mục tiêu ngày): <strong style="color:#4f46e5;font-size:16px;">\${newWordsLeft}</strong> từ</li>
+          </ul>
+        </div>
+        <p style="color:#555;line-height:1.7;margin:0 0 24px;">
+          Dành ra 5 phút ôn bài ngay bây giờ để kích hoạt lại trí nhớ dài hạn và giữ vững chuỗi <b>Streak lửa</b> nhé!
+        </p>
+        <a href="\${process.env.FRONTEND_URL || 'http://localhost:5173'}" 
+           style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:15px;">
+          Bắt đầu luyện tập →
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td style="background:#f8f9ff;padding:24px;text-align:center;">
+        <p style="color:#aaa;font-size:12px;margin:0;">
+          © 2026 Minlish. Bạn nhận được email này vì đã bật tùy chọn nhận email nhắc học khi ngoại tuyến.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
+
+/**
+ * Gửi email nhắc học hàng ngày
+ */
+export const sendDailyReminderEmail = async (
+  to: string,
+  name: string,
+  dueCount: number,
+  newWordsLeft: number
+): Promise<void> => {
+  await sendMailAndLog({
+    from: `"Minlish ⏰" <\${process.env.MAIL_USER}>`,
+    to,
+    subject: '⏰ MinLish - Đã đến giờ học hàng ngày của bạn!',
+    html: dailyReminderTemplate(name, dueCount, newWordsLeft),
+  }, 'Daily reminder email');
+};
