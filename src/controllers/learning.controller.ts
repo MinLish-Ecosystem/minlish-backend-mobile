@@ -156,3 +156,96 @@ export async function batchSyncController(
     next(err);
   }
 }
+/**
+ * Get /api/v1/learning/home
+ * Lấy thông tin tổng quan: số từ mới, số từ cần ôn, và danh sách bộ từ vựng kèm trạng thái học hôm nay
+ */
+export async function getHomeDashboardController(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user!.id;
+    const dashboard = await learningService.getHomeDashboard(userId);
+    sendSuccess(res, "Home dashboard loaded", dashboard);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function getFlashcardTestController(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user!.id;
+    const { setId, limit, status } = req.query;
+
+    const flashcards = await learningService.getFlashcardTest(
+        userId,
+        {
+          setId: setId as string | undefined,
+          limit: limit ? parseInt(limit as string) : undefined,
+          status: status as string | undefined
+        }
+    );
+
+    sendSuccess(res, "Flashcards fetched successfully", {
+      userId,
+      flashCardSets: flashcards
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+/**
+ * POST /api/v1/learning/batch-review
+ * Nộp kết quả bài test hàng loạt
+ */
+// src/controllers/learning.controller.ts
+
+export async function batchReviewController(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user!.id;
+    const { reviews } = req.body;
+    console.log(`📦 [BATCH REVIEW] User ${userId} gửi ${reviews?.length || 0} từ`);
+    if (!Array.isArray(reviews)) {
+      throw new AppError("Invalid payload: reviews array required", HttpStatus.BAD_REQUEST);
+    }
+
+    // ✅ Loop trong controller + gọi submitReview (service cũ)
+    const results = await Promise.all(
+        reviews.map(async (review) => {
+          try {
+            const result = await learningService.submitReview(
+                review.wordId,
+                userId,
+                {
+                  setId: review.setId,
+                  rating: review.rating,
+                  timeSpent: review.timeSpent,
+                  reviewedAt: review.reviewedAt
+                }
+            );
+            return { wordId: review.wordId, success: true, data: result };
+          } catch (err: any) {
+            return { wordId: review.wordId, success: false, error: err.message };
+          }
+        })
+    );
+
+    sendSuccess(res, `Batch review completed`, {
+      total: results.length,
+      successCount: results.filter(r => r.success).length,
+      results
+    });
+  } catch (err) {
+    next(err);
+  }
+}

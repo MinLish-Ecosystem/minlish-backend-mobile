@@ -3,13 +3,13 @@ import { verifyToken } from "../middlewares/auth.middleware";
 import { validate } from "../middlewares/validate.middleware";
 import { body, param, query } from "express-validator";
 import {
-  getDueSummaryController,
-  getLearningQueueController,
-  submitReviewController,
-  getSetLearningQueueController,
-  getSetProgressSummaryController,
-  getWordSRSProgressController,
-  batchSyncController
+    getDueSummaryController,
+    getLearningQueueController,
+    submitReviewController,
+    getSetLearningQueueController,
+    getSetProgressSummaryController,
+    getWordSRSProgressController,
+    batchSyncController, getHomeDashboardController, getFlashcardTestController, batchReviewController
 } from "../controllers/learning.controller";
 
 /**
@@ -283,4 +283,114 @@ router.post(
   batchSyncController
 );
 
+/**
+ * @swagger
+ * /api/v1/learning/home:
+ *   get:
+ *     summary: Lấy dữ liệu tổng quan màn hình Home (Learning Dashboard)
+ *     tags: [Learning]
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Trả về thông tin tổng quan: số từ mới, số từ cần ôn, và danh sách bộ từ vựng kèm trạng thái học hôm nay
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Home dashboard loaded"
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userId:
+ *                       type: string
+ *                       example: "65f1a2b3c4d5e6f7a8b9c0d1"
+ *                     newWords:
+ *                       type: integer
+ *                       example: 12
+ *                     reviewsDue:
+ *                       type: integer
+ *                       example: 25
+ *                     vocabSets:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id: { type: string, example: "660c1abf8c0288219..." }
+ *                           title: { type: string, example: "IELTS Core Vocabulary" }
+ *                           wordCount: { type: integer, example: 150 }
+ *                           icon: { type: string, example: "📘" }
+ *                           isDueToday: { type: boolean, example: true }
+ */
+
+router.get("/home", verifyToken, getHomeDashboardController);
+/**
+ * @swagger
+ * /api/v1/learning/flashcard-test:
+ *   get:
+ *     summary: Lấy danh sách flashcard để làm bài test/luyện tập
+ *     tags: [Learning]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: setId
+ *         schema: { type: string }
+ *         description: Lọc theo ID bộ từ vựng (optional)
+ *       - in: query
+ *         name: limit
+ *         schema: { type: integer, default: 20, maximum: 100 }
+ *         description: Số lượng flashcard trả về
+ *       - in: query
+ *         name: status
+ *         schema: { type: string, enum: [new, learning, review, mastered] }
+ *         description: Lọc theo trạng thái SRS của từ
+ *     responses:
+ *       200:
+ *         description: Trả về danh sách flashcard khớp FlashCardTestDto
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean, example: true }
+ *                 message: { type: string, example: "Flashcards fetched successfully" }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     userId: { type: string }
+ *                     flashCardSets:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           category: { type: string, example: "ielts" }
+ *                           word: { type: string, example: "ephemeral" }
+ *                           phonetic: { type: string, example: "/ɪˈfem.ər.əl/" }
+ *                           partOfSpeech: { type: string, example: "adjective" }
+ *                           definition: { type: string, example: "lasting for a very short time" }
+ *                           example: { type: string, example: "The ephemeral beauty of cherry blossoms" }
+ */
+
+router.get("/flashcard-test", verifyToken, getFlashcardTestController);
+router.post(
+    "/batch-review",
+    verifyToken,
+    [
+        body("reviews").isArray().withMessage("reviews must be an array"),
+        body("reviews.*.wordId").isMongoId().withMessage("Invalid wordId"),
+        body("reviews.*.setId").isMongoId().withMessage("Invalid setId"),
+        body("reviews.*.rating").isIn(["again", "hard", "good", "easy"]).withMessage("Invalid rating"),
+        body("reviews.*.timeSpent").optional().isInt({ min: 0 }).toInt(),
+        body("reviews.*.reviewedAt").optional().isISO8601().withMessage("reviewedAt must be ISO8601")
+    ],
+    validate,
+    batchReviewController
+);
 export default router;

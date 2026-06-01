@@ -91,3 +91,20 @@ export interface WordSRSProgress {
   lastReviewDate?: string;
   lastRating?: string;
 }
+export interface FlashcardQuery {
+  setId?: string;
+  limit?: number;
+  status?: string;
+}
+
+export interface FlashcardContent {
+  id: string;       // 🔥 Đây là WordID (bắt buộc để gửi lại)
+  setId: string;    // 🔥 Đây là SetID (bắt buộc để validate)
+  category: string;
+  word: string;
+  phonetic: string;
+  partOfSpeech: string;
+  definition: string;
+  example: string;
+}
+

@@ -17,7 +17,7 @@ import {
   SetProgressSummary,
   WordSRSProgress,
   LearningCard,
-  QueueSummary
+  QueueSummary, FlashcardQuery, FlashcardContent
 } from "../types/learning.types";
 
 /**
@@ -500,4 +500,104 @@ export async function getWordSRSProgress(
     lastReviewDate: progress?.lastReviewDate?.toISOString(),
     lastRating: progress?.lastRating
   };
+}
+
+export async function getHomeDashboard(userId: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  // Aggregate tính newWords & reviewsDue
+  const summary = await LearningProgress.aggregate([
+    { $match: { userId: new Types.ObjectId(userId) } },
+    { $facet: {
+        newWords: [{ $match: { status: "new" } }, { $count: "count" }],
+        reviewsDue: [{
+          $match: { status: "review", nextReviewDate: { $lt: tomorrow } }
+        }, { $count: "count" }]
+      }
+    }
+  ]);
+
+  const newWords = summary[0].newWords[0]?.count || 0;
+  const reviewsDue = summary[0].reviewsDue[0]?.count || 0;
+
+  // Lấy danh sách sets của user
+  const sets = await VocabularySet.find({
+    userId: new Types.ObjectId(userId),
+    isDeleted: { $ne: true }
+  }).select("_id name colorTheme totalWords").lean();  // ← Chọn đúng field
+
+  // Check set nào có từ cần ôn hôm nay
+  const setIds = sets.map(s => s._id.toString());
+  const dueSetIds = await LearningProgress.distinct("setId", {
+    userId: new Types.ObjectId(userId),
+    setId: { $in: setIds },
+    nextReviewDate: { $lt: tomorrow },
+    status: { $in: ["learning", "review"] }
+  });
+  const dueSetIdStrings = dueSetIds.map(id => id.toString());
+  // Map sang LearningDto - khớp 100%
+  const vocabSets = sets.map(s => ({
+    id: s._id.toString(),
+    title: s.name,
+    wordCount: s.totalWords ?? 0,    // ← totalWords từ model
+    icon: null,                      // ← FE tự handle default icon
+    isDueToday: dueSetIdStrings.includes(s._id.toString())
+  }));
+
+  return {
+    userId,
+    newWords,
+    reviewsDue,
+    vocabSets
+  };
+}
+
+
+/**
+ * Lấy danh sách flashcard để làm bài test/luyện tập
+ * Map từ Word + LearningProgress + VocabularySet → FlashcardContentDto
+ */
+export async function getFlashcardTest(
+    userId: string,
+    query: FlashcardQuery
+): Promise<FlashcardContent[]> {
+  const userObjectId = new Types.ObjectId(userId);
+  const now = new Date(); // 🔥 Thời gian hiện tại
+  const limit = query.limit ?? 20;
+
+  // 🔥 Build filter CHUẨN: Chỉ lấy từ SM-2 báo "đã đến hạn ôn"
+  const progressFilter: any = {
+    userId: userObjectId,
+    status: { $ne: "new" },              // Loại từ mới chưa học
+    nextReviewDate: { $lte: now }        // 🔥 Quan trọng: Chỉ lấy từ quá hạn/đến hạn
+  };
+
+  if (query.setId) progressFilter.setId = new Types.ObjectId(query.setId);
+  if (query.status && query.status !== "new") progressFilter.status = query.status;
+
+  // 🔥 Query + Sort ưu tiên từ quá hạn lâu nhất
+  const progresses = await LearningProgress.find(progressFilter)
+      .sort({ nextReviewDate: 1, easeFactor: 1 })
+      .limit(limit)
+      .populate("wordId")
+      .populate("setId", "category")
+      .lean();
+
+  return progresses
+      .filter((p: any) => p.wordId)
+      .map((p: any) => ({
+        id: p.wordId._id.toString(),    // 🔥 WordID (bắt buộc)
+        setId: p.setId?._id.toString() ?? "", // 🔥 SetID (bắt buộc)
+        category: p.setId?.category ?? "general",
+        word: p.wordId.word ?? "",
+        phonetic: p.wordId.pronunciation ?? "",
+        partOfSpeech: p.wordId.partOfSpeech ?? "",
+        definition: p.wordId.meaning ?? "",
+        example: Array.isArray(p.wordId.examples) && p.wordId.examples.length > 0
+            ? p.wordId.examples[0]
+            : ""
+      }));
 }
