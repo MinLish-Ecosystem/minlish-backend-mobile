@@ -10,6 +10,7 @@ import { ErrorCodes } from '../constants/errorCodes';
 import { OTP } from '../models/OTP';
 import { generateOTP, getOTPExpiresAt } from '../utils/otp.util';
 import { sendEmailChangeRequestEmail } from './mail.service';
+import { uploadImage, deleteImage, getPublicIdFromUrl } from './cloudinary.service';
 
 /**
  * Lấy thông tin profile của user theo ID
@@ -51,7 +52,24 @@ export const updateUserProfile = async (
   }
 
   if (data.avatar !== undefined) {
-    user.avatar = data.avatar ? data.avatar.trim() : null;
+    if (data.avatar && (data.avatar.startsWith('data:image/') || data.avatar.includes('base64,'))) {
+      // Clean up old avatar if exists on Cloudinary
+      if (user.avatar) {
+        const oldPublicId = getPublicIdFromUrl(user.avatar);
+        if (oldPublicId) {
+          try {
+            await deleteImage(oldPublicId);
+          } catch (err) {
+            console.error('[Cloudinary] Failed to clean up old avatar:', err);
+          }
+        }
+      }
+      // Upload new avatar
+      const uploadRes = await uploadImage(data.avatar, 'minlish_avatars');
+      user.avatar = uploadRes.secure_url;
+    } else {
+      user.avatar = data.avatar ? data.avatar.trim() : null;
+    }
   }
 
   await user.save();
