@@ -8,6 +8,7 @@ import { applyReview } from "../utils/sm2";
 import { AppError } from "../utils/AppError";
 import { HttpStatus } from "../constants/httpStatus";
 import { ErrorCodes } from "../constants/errorCodes";
+import { dispatch } from './notification-dispatcher.service';
 import {
   LearningQueueFilters,
   LearningQueueResponse,
@@ -17,7 +18,7 @@ import {
   SetProgressSummary,
   WordSRSProgress,
   LearningCard,
-  QueueSummary
+  QueueSummary, FlashcardQuery, FlashcardContent
 } from "../types/learning.types";
 
 /**
@@ -289,6 +290,21 @@ export async function submitReview(
     { upsert: true }
   );
 
+  try {
+    const streak = await calculateCurrentStreak(userId);
+    if ([7, 14, 30, 60, 100].includes(streak)) {
+      await dispatch(
+          userId,
+          'streak_milestone',
+          `🔥 ${streak} ngày học liên tiếp!`,
+          `Tuyệt vời! Bạn đã duy trì streak ${streak} ngày. Tiếp tục phát huy nhé!`,
+          { data: { screen: 'analytics', streak: streak.toString() } }
+          );
+      }
+    } catch (e) {
+      console.error('[Hook] Streak milestone check failed:', e);
+    }
+
   return {
     wordId: updatedProgress.wordId.toString(),
     previousStatus,
@@ -501,3 +517,128 @@ export async function getWordSRSProgress(
     lastRating: progress?.lastRating
   };
 }
+
+export async function getHomeDashboard(userId: string) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  // Aggregate tính newWords & reviewsDue
+  const summary = await LearningProgress.aggregate([
+    { $match: { userId: new Types.ObjectId(userId) } },
+    { $facet: {
+        newWords: [{ $match: { status: "new" } }, { $count: "count" }],
+        reviewsDue: [{
+          $match: { status: "review", nextReviewDate: { $lt: tomorrow } }
+        }, { $count: "count" }]
+      }
+    }
+  ]);
+
+  const newWords = summary[0].newWords[0]?.count || 0;
+  const reviewsDue = summary[0].reviewsDue[0]?.count || 0;
+
+  // Lấy danh sách sets của user
+  const sets = await VocabularySet.find({
+    userId: new Types.ObjectId(userId),
+    isDeleted: { $ne: true }
+  }).select("_id name colorTheme totalWords").lean();  // ← Chọn đúng field
+
+  // Check set nào có từ cần ôn hôm nay
+  const setIds = sets.map(s => s._id.toString());
+  const dueSetIds = await LearningProgress.distinct("setId", {
+    userId: new Types.ObjectId(userId),
+    setId: { $in: setIds },
+    nextReviewDate: { $lt: tomorrow },
+    status: { $in: ["learning", "review"] }
+  });
+  const dueSetIdStrings = dueSetIds.map(id => id.toString());
+  // Map sang LearningDto - khớp 100%
+  const vocabSets = sets.map(s => ({
+    id: s._id.toString(),
+    title: s.name,
+    wordCount: s.totalWords ?? 0,    // ← totalWords từ model
+    icon: null,                      // ← FE tự handle default icon
+    isDueToday: dueSetIdStrings.includes(s._id.toString())
+  }));
+
+  return {
+    userId,
+    newWords,
+    reviewsDue,
+    vocabSets
+  };
+}
+
+
+/**
+ * Lấy danh sách flashcard để làm bài test/luyện tập
+ * Map từ Word + LearningProgress + VocabularySet → FlashcardContentDto
+ */
+export async function getFlashcardTest(
+    userId: string,
+    query: FlashcardQuery
+): Promise<any> { // Đổi kiểu trả về hoặc tạo interface tương ứng FlashCardTestDto
+  const userObjectId = new Types.ObjectId(userId);
+  const now = new Date();
+  const limit = query.limit ?? 20;
+
+  const progressFilter: any = {
+    userId: userObjectId,
+    status: {$ne: "new"},
+    nextReviewDate: {$lte: now}
+  };
+
+  if (query.setId) progressFilter.setId = new Types.ObjectId(query.setId);
+  if (query.status && query.status !== "new") progressFilter.status = query.status;
+
+  const progresses = await LearningProgress.find(progressFilter)
+      .sort({nextReviewDate: 1, easeFactor: 1})
+      .limit(limit)
+      .populate("wordId")
+      .populate("setId", "category")
+      .lean();
+
+  // 🔥 MAP DỮ LIỆU
+  const flashCardSets = progresses
+      .filter((p: any) => p.wordId)
+      .map((p: any) => ({
+        category: p.setId?.category ?? "general",
+        word: p.wordId.word ?? "",
+        phonetic: p.wordId.pronunciation ?? "",
+        partOfSpeech: p.wordId.partOfSpeech ?? "",
+        definition: p.wordId.meaning ?? "",
+        example: Array.isArray(p.wordId.examples) && p.wordId.examples.length > 0
+            ? p.wordId.examples[0]
+            : ""
+      }));
+
+  // 🔥 BỌC LẠI OBJECT CHO KHỚP VỚI ANDROID
+  return {
+    userId: userId,
+    flashCardSets: flashCardSets
+  }
+}
+async function calculateCurrentStreak(userId: string): Promise<number> {
+  const stats = await DailyStats.find({ userId: new Types.ObjectId(userId) })
+      .sort({ date: -1 })
+      .select('date')
+      .lean();
+  let streak = 0;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  for (let i = 0; i < stats.length; i++) {
+    const expected = new Date(today);
+    expected.setDate(today.getDate() - i);
+    const actual = new Date(stats[i].date);
+    actual.setHours(0, 0, 0, 0);
+    if (actual.getTime() === expected.getTime()) {
+      streak++;
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+

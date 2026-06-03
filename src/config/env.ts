@@ -32,11 +32,11 @@ const envSchema = z.object({
   path: ["MONGO_URI"],
 });
 
-// Validate process.env
+// Validate process..env
 const _env = envSchema.safeParse(process.env);
 
 if (!_env.success) {
-  console.error('❌ Cấu hình môi trường (.env) không hợp lệ:');
+  console.error('❌ Cấu hình môi trường (..env) không hợp lệ:');
   _env.error.issues.forEach(issue => {
     console.error(`   - ${issue.path.join('.')}: ${issue.message}`);
   });

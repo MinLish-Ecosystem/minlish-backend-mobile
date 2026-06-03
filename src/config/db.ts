@@ -14,13 +14,13 @@ try {
 
 /**
  * Kết nối MongoDB
- * Đọc từ MONGO_URI trong .env (hỗ trợ cả Atlas và Local)
+ * Đọc từ MONGO_URI trong ..env (hỗ trợ cả Atlas và Local)
  */
 export const connectDB = async (): Promise<void> => {
   const mongoUri = process.env.MONGO_URI_ATLAS || process.env.MONGO_URI_LOCAL;
 
   if (!mongoUri) {
-    console.error("✗ Fatal Error: MONGO_URI_ATLAS and MONGO_URI_LOCAL are not defined in .env");
+    console.error("✗ Fatal Error: MONGO_URI_ATLAS and MONGO_URI_LOCAL are not defined in ..env");
     process.exit(1);
   }
 
@@ -43,7 +43,7 @@ export const connectDB = async (): Promise<void> => {
     if (!process.env.MONGO_URI) {
       console.error("\n⚠ Tip: Using local MongoDB. To use MongoDB Atlas:");
       console.error("1. Get connection string from MongoDB Atlas");
-      console.error("2. Add MONGO_URI=mongodb+srv://... to .env file");
+      console.error("2. Add MONGO_URI=mongodb+srv://... to ..env file");
       console.error("3. Restart the application\n");
     }
     throw error;

@@ -26,7 +26,7 @@ async function migrate() {
     process.env.MONGO_URI_ATLAS || process.env.MONGO_URI_LOCAL || '';
 
   if (!mongoUri) {
-    console.error('✗ Không tìm thấy MONGO_URI trong .env');
+    console.error('✗ Không tìm thấy MONGO_URI trong ..env');
     process.exit(1);
   }
 

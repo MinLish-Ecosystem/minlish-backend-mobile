@@ -4,6 +4,7 @@ import app from './app';
 import { connectDB } from './config/db';
 import { verifyMailer } from './config/mailer';
 import { cleanExpiredTokens } from './utils/tokenBlacklist';
+import { startDailyReminderJob } from './jobs/notification.jobs';
 
 const PORT = process.env.PORT || 3000;
 const isDev = process.env.NODE_ENV !== 'production';
@@ -36,6 +37,7 @@ const startServer = async () => {
       
       // Chạy dọn dẹp blacklist mỗi 1 giờ
       setInterval(cleanExpiredTokens, 60 * 60 * 1000);
+      startDailyReminderJob();
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error);

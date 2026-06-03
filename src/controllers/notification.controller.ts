@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { catchAsync } from '../utils/catchAsync';
 import { sendSuccess } from '../utils/response.util';
 import * as notifService from '../services/notification.service';
+import { UserProfile } from '../models/UserProfile';
 
 /**
  * @swagger
@@ -35,6 +36,7 @@ export const getNotificationsController = catchAsync(async (req: Request, res: R
   const page = Number(req.query.page || 1);
   const limit = Number(req.query.limit || 20);
   const type = req.query.type as string | undefined;
+  UserProfile.updateOne({ userId }, { $set: { lastActiveAt: new Date() } }).exec().catch(err => console.error("Error updating lastActiveAt ngầm:", err));
   const result = await notifService.getNotifications(userId, page, limit, type);
   return sendSuccess(res, 'Notifications fetched', result);
 });
@@ -53,6 +55,7 @@ export const getNotificationsController = catchAsync(async (req: Request, res: R
  */
 export const getUnreadCountController = catchAsync(async (req: Request, res: Response) => {
   const userId = (req.user?._id as any)?.toString();
+  UserProfile.updateOne({ userId }, { $set: { lastActiveAt: new Date() } }).exec().catch(err => console.error("Error updating lastActiveAt ngầm:", err));
   const count = await notifService.getUnreadCount(userId);
   return sendSuccess(res, 'Unread count', { unreadCount: count });
 });

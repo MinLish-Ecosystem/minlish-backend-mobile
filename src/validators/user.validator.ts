@@ -65,6 +65,10 @@ export const learningProfileValidator = [
     .optional()
     .isBoolean()
     .withMessage('preferences.pushNotification must be boolean'),
+  body('preferences.emailNofitication')
+      .optional()
+      .isBoolean()
+      .withMessage('preferences.emailNofitication must be boolean'),
   body('preferences.soundEffect')
     .optional()
     .isBoolean()

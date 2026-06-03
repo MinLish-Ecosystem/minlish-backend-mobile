@@ -10,6 +10,7 @@ import { ErrorCodes } from '../constants/errorCodes';
 import { OTP } from '../models/OTP';
 import { generateOTP, getOTPExpiresAt } from '../utils/otp.util';
 import { sendEmailChangeRequestEmail } from './mail.service';
+import { uploadImage, deleteImage, getPublicIdFromUrl } from './cloudinary.service';
 
 /**
  * Lấy thông tin profile của user theo ID
@@ -51,7 +52,24 @@ export const updateUserProfile = async (
   }
 
   if (data.avatar !== undefined) {
-    user.avatar = data.avatar ? data.avatar.trim() : null;
+    if (data.avatar && (data.avatar.startsWith('data:image/') || data.avatar.includes('base64,'))) {
+      // Clean up old avatar if exists on Cloudinary
+      if (user.avatar) {
+        const oldPublicId = getPublicIdFromUrl(user.avatar);
+        if (oldPublicId) {
+          try {
+            await deleteImage(oldPublicId);
+          } catch (err) {
+            console.error('[Cloudinary] Failed to clean up old avatar:', err);
+          }
+        }
+      }
+      // Upload new avatar
+      const uploadRes = await uploadImage(data.avatar, 'minlish_avatars');
+      user.avatar = uploadRes.secure_url;
+    } else {
+      user.avatar = data.avatar ? data.avatar.trim() : null;
+    }
   }
 
   await user.save();
@@ -171,6 +189,7 @@ export const getLearningProfile = async (userId: string) => {
     timezone: profile.timezone,
     preferences: {
       pushNotification: profile.preferences.pushNotification,
+      emailNotification: profile.preferences.emailNotification,
       soundEffect: profile.preferences.soundEffect,
     },
   };
@@ -188,7 +207,7 @@ export const updateLearningProfile = async (
     reviewPerDay: number;
     reminderTime: string;
     timezone: string;
-    preferences: { pushNotification?: boolean; soundEffect?: boolean };
+    preferences: { pushNotification?: boolean; emailNotification?: boolean; soundEffect?: boolean };
   }>,
 ) => {
   // Flatten preferences để $set hoạt động đúng trên sub-doc
@@ -201,6 +220,9 @@ export const updateLearningProfile = async (
   if (data.timezone !== undefined) updateData.timezone = data.timezone;
   if (data.preferences?.pushNotification !== undefined) {
     updateData['preferences.pushNotification'] = data.preferences.pushNotification;
+  }
+  if (data.preferences?.emailNotification !== undefined) {
+    updateData['preferences.emailNotification'] = data.preferences.emailNotification;
   }
   if (data.preferences?.soundEffect !== undefined) {
     updateData['preferences.soundEffect'] = data.preferences.soundEffect;
@@ -222,6 +244,7 @@ export const updateLearningProfile = async (
     timezone: profile!.timezone,
     preferences: {
       pushNotification: profile!.preferences.pushNotification,
+      emailNotification: profile!.preferences.emailNotification,
       soundEffect: profile!.preferences.soundEffect,
     },
   };
