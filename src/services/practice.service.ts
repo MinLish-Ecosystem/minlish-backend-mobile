@@ -2,10 +2,10 @@ import { PracticeModeResponse, ModeItem } from "../types/practice.types";
 
 // 🔧 BIẾN CẤU HÌNH CỨNG - Chỉ cần sửa chỗ này khi thay đổi tính năng
 const PRACTICE_MODES_CONFIG: ModeItem[] = [
-    { id: "smart_review",       isComingSoon: true },
+    { id: "smart_review",       isComingSoon: false },
     { id: "vocabulary_quiz",    isComingSoon: true },
-    { id: "listening_challenge",isComingSoon: false },
-    { id: "writing_practice",   isComingSoon: false }
+    { id: "listening_challenge",isComingSoon: true },
+    { id: "writing_practice",   isComingSoon: true }
 ];
 
 /**

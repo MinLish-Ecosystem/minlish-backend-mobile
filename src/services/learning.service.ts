@@ -563,22 +563,20 @@ export async function getHomeDashboard(userId: string) {
 export async function getFlashcardTest(
     userId: string,
     query: FlashcardQuery
-): Promise<FlashcardContent[]> {
+): Promise<any> { // Đổi kiểu trả về hoặc tạo interface tương ứng FlashCardTestDto
   const userObjectId = new Types.ObjectId(userId);
-  const now = new Date(); // 🔥 Thời gian hiện tại
+  const now = new Date();
   const limit = query.limit ?? 20;
 
-  // 🔥 Build filter CHUẨN: Chỉ lấy từ SM-2 báo "đã đến hạn ôn"
   const progressFilter: any = {
     userId: userObjectId,
-    status: { $ne: "new" },              // Loại từ mới chưa học
-    nextReviewDate: { $lte: now }        // 🔥 Quan trọng: Chỉ lấy từ quá hạn/đến hạn
+    status: { $ne: "new" },
+    nextReviewDate: { $lte: now }
   };
 
   if (query.setId) progressFilter.setId = new Types.ObjectId(query.setId);
   if (query.status && query.status !== "new") progressFilter.status = query.status;
 
-  // 🔥 Query + Sort ưu tiên từ quá hạn lâu nhất
   const progresses = await LearningProgress.find(progressFilter)
       .sort({ nextReviewDate: 1, easeFactor: 1 })
       .limit(limit)
@@ -586,11 +584,10 @@ export async function getFlashcardTest(
       .populate("setId", "category")
       .lean();
 
-  return progresses
+  // 🔥 MAP DỮ LIỆU
+  const flashCardSets = progresses
       .filter((p: any) => p.wordId)
       .map((p: any) => ({
-        id: p.wordId._id.toString(),    // 🔥 WordID (bắt buộc)
-        setId: p.setId?._id.toString() ?? "", // 🔥 SetID (bắt buộc)
         category: p.setId?.category ?? "general",
         word: p.wordId.word ?? "",
         phonetic: p.wordId.pronunciation ?? "",
@@ -600,4 +597,10 @@ export async function getFlashcardTest(
             ? p.wordId.examples[0]
             : ""
       }));
+
+  // 🔥 BỌC LẠI OBJECT CHO KHỚP VỚI ANDROID
+  return {
+    userId: userId,
+    flashCardSets: flashCardSets
+  };
 }

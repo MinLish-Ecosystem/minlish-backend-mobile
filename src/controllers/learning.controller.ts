@@ -192,10 +192,8 @@ export async function getFlashcardTestController(
         }
     );
 
-    sendSuccess(res, "Flashcards fetched successfully", {
-      userId,
-      flashCardSets: flashcards
-    });
+    // ✅ SỬA: Truyền thẳng flashcards (đã là {userId, flashCardSets})
+    sendSuccess(res, "Flashcards fetched successfully", flashcards);
   } catch (err) {
     next(err);
   }
