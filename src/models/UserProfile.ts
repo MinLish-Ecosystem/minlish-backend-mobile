@@ -14,6 +14,7 @@ export interface IUserProfile extends Document {
     soundEffect: boolean;
   };
   reviewPerDay: number;
+  lastActiveAt?: Date; // Added for offline check
   createdAt: Date;
   updatedAt: Date;
 }
@@ -65,6 +66,10 @@ const UserProfileSchema = new Schema<IUserProfile>(
       default: 20,
       min: [1, "Review goal must be at least 1"],
       max: [200, "Review goal cannot exceed 200"],
+    },
+    lastActiveAt: {
+      type: Date,
+      default: null,
     },
   },
   { timestamps: true },
