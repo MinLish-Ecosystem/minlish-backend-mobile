@@ -3,13 +3,13 @@ import { verifyToken } from "../middlewares/auth.middleware";
 import { validate } from "../middlewares/validate.middleware";
 import { body, param, query } from "express-validator";
 import {
-    getDueSummaryController,
-    getLearningQueueController,
-    submitReviewController,
-    getSetLearningQueueController,
-    getSetProgressSummaryController,
-    getWordSRSProgressController,
-    batchSyncController, getHomeDashboardController, getFlashcardTestController, batchReviewController
+  getDueSummaryController,
+  getLearningQueueController,
+  submitReviewController,
+  getSetLearningQueueController,
+  getSetProgressSummaryController,
+  getWordSRSProgressController,
+  batchSyncController, getHomeDashboardController, getFlashcardTestController, batchReviewController
 } from "../controllers/learning.controller";
 
 /**
@@ -293,7 +293,7 @@ router.post(
  *       - BearerAuth: []
  *     responses:
  *       200:
- *         description: Trả về thông tin tổng quan: số từ mới, số từ cần ôn, và danh sách bộ từ vựng kèm trạng thái học hôm nay
+ *         description: Trả về thông tin tổng quan - số từ mới, số từ cần ôn, và danh sách bộ từ vựng kèm trạng thái học hôm nay
  *         content:
  *           application/json:
  *             schema:
@@ -380,17 +380,17 @@ router.get("/home", verifyToken, getHomeDashboardController);
 
 router.get("/flashcard-test", verifyToken, getFlashcardTestController);
 router.post(
-    "/batch-review",
-    verifyToken,
-    [
-        body("reviews").isArray().withMessage("reviews must be an array"),
-        body("reviews.*.wordId").isMongoId().withMessage("Invalid wordId"),
-        body("reviews.*.setId").isMongoId().withMessage("Invalid setId"),
-        body("reviews.*.rating").isIn(["again", "hard", "good", "easy"]).withMessage("Invalid rating"),
-        body("reviews.*.timeSpent").optional().isInt({ min: 0 }).toInt(),
-        body("reviews.*.reviewedAt").optional().isISO8601().withMessage("reviewedAt must be ISO8601")
-    ],
-    validate,
-    batchReviewController
+  "/batch-review",
+  verifyToken,
+  [
+    body("reviews").isArray().withMessage("reviews must be an array"),
+    body("reviews.*.wordId").isMongoId().withMessage("Invalid wordId"),
+    body("reviews.*.setId").isMongoId().withMessage("Invalid setId"),
+    body("reviews.*.rating").isIn(["again", "hard", "good", "easy"]).withMessage("Invalid rating"),
+    body("reviews.*.timeSpent").optional().isInt({ min: 0 }).toInt(),
+    body("reviews.*.reviewedAt").optional().isISO8601().withMessage("reviewedAt must be ISO8601")
+  ],
+  validate,
+  batchReviewController
 );
 export default router;

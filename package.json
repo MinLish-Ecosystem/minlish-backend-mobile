@@ -2,6 +2,17 @@
   "name": "minlish-backend",
   "version": "1.0.0",
   "description": "Backend API for Minlish - English Learning Platform",
+  "homepage": "https://github.com/MinLish-Ecosystem/minlish-backend-mobile#readme",
+  "bugs": {
+    "url": "https://github.com/MinLish-Ecosystem/minlish-backend-mobile/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MinLish-Ecosystem/minlish-backend-mobile.git"
+  },
+  "license": "ISC",
+  "author": "Group10",
+  "type": "commonjs",
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
@@ -12,35 +23,44 @@
   },
   "dependencies": {
     "axios": "^1.16.1",
+    "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "cloudinary": "^2.5.1",
     "compression": "^1.8.1",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
+    "cors": "^2.8.6",
+    "dotenv": "^16.6.1",
+    "ejs": "^6.0.1",
+    "express": "^4.22.2",
     "express-rate-limit": "^7.3.1",
     "express-validator": "^7.1.0",
     "firebase-admin": "^13.10.0",
     "helmet": "^8.2.0",
     "http-status-codes": "^2.3.0",
-    "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.4.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.24.0",
     "nodemailer": "^8.0.7",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@babel/core": "^7.29.7",
+    "@babel/node": "^7.29.7",
+    "@babel/preset-env": "^7.29.7",
     "@types/bcryptjs": "^2.4.6",
     "@types/compression": "^1.8.1",
-    "@types/cors": "^2.8.17",
-    "@types/express": "^4.17.21",
-    "@types/jsonwebtoken": "^9.0.6",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.25",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^25.9.1",
     "@types/nodemailer": "^6.4.15",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.6",
     "node-cron": "^4.2.1",
+    "nodemon": "^3.1.14",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.9.3"
   }
 }
