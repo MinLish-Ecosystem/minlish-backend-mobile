@@ -108,3 +108,23 @@ export interface FlashcardContent {
   example: string;
 }
 
+// types/learning.types.ts
+export interface BatchReviewItem {
+  wordId: string;
+  setId: string;
+  rating: "again" | "hard" | "good" | "easy";
+  reviewedAt?: string;
+  timeSpent?: number;
+}
+
+export interface BatchSubmitReviewDTO {
+  reviews: BatchReviewItem[];
+}
+
+export interface BatchSubmitReviewResponse {
+  results: SubmitReviewResponse[];
+  successCount: number;
+  failedCount: number;
+  errors?: Array<{ wordId: string; error: string }>;
+}
+

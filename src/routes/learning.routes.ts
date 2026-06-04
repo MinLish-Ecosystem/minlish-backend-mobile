@@ -3,13 +3,17 @@ import { verifyToken } from "../middlewares/auth.middleware";
 import { validate } from "../middlewares/validate.middleware";
 import { body, param, query } from "express-validator";
 import {
-  getDueSummaryController,
-  getLearningQueueController,
-  submitReviewController,
-  getSetLearningQueueController,
-  getSetProgressSummaryController,
-  getWordSRSProgressController,
-  batchSyncController, getHomeDashboardController, getFlashcardTestController, batchReviewController
+    getDueSummaryController,
+    getLearningQueueController,
+    submitReviewController,
+    getSetLearningQueueController,
+    getSetProgressSummaryController,
+    getWordSRSProgressController,
+    batchSyncController,
+    getHomeDashboardController,
+    getFlashcardTestController,
+    batchReviewController,
+    submitBatchReviewController
 } from "../controllers/learning.controller";
 
 /**
@@ -393,4 +397,6 @@ router.post(
   validate,
   batchReviewController
 );
+
+router.post("/submit-review-batch", verifyToken, submitBatchReviewController);
 export default router;
