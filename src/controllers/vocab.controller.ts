@@ -21,7 +21,7 @@ function parseFilters(query: Request["query"]): VocabSetFilters {
     tags:     parseTags(query.tags as string),
     page:     query.page  ? Number(query.page)  : 1,
     limit:    query.limit ? Number(query.limit) : 12,
-    includeProgress: query.includeProgress === "true",
+    includeProgress: Boolean(query.includeProgress),
   };
 }
 

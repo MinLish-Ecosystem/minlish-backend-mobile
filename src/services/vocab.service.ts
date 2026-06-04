@@ -83,6 +83,7 @@ function mapWordToResponse(w: any): WordResponse {
     synonyms: w.synonyms ?? [],
     antonyms: w.antonyms ?? [],
     collocations: w.collocations ?? [],
+    relatedWords: w.relatedWords ?? [],
     note: w.note,
     imageUrl: w.imageUrl,
     audioUrl: w.audioUrl,
