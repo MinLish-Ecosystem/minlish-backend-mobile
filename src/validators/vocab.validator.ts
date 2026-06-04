@@ -84,6 +84,14 @@ export const addWordValidator = [
     .optional()
     .isArray({ max: 10 }).withMessage("Cannot have more than 10 antonyms"),
 
+  body("collocations")
+    .optional()
+    .isArray({ max: 10 }).withMessage("Cannot have more than 10 collocations"),
+
+  body("relatedWords")
+    .optional()
+    .isArray({ max: 10 }).withMessage("Cannot have more than 10 related words"),
+
   body("note")
     .optional()
     .isLength({ max: 500 }).withMessage("Note cannot exceed 500 characters"),

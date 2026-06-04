@@ -161,9 +161,9 @@ export async function batchSyncController(
  * Lấy thông tin tổng quan: số từ mới, số từ cần ôn, và danh sách bộ từ vựng kèm trạng thái học hôm nay
  */
 export async function getHomeDashboardController(
-    req: Request,
-    res: Response,
-    next: NextFunction
+  req: Request,
+  res: Response,
+  next: NextFunction
 ): Promise<void> {
   try {
     const userId = req.user!.id;
@@ -175,24 +175,23 @@ export async function getHomeDashboardController(
 }
 
 export async function getFlashcardTestController(
-    req: Request,
-    res: Response,
-    next: NextFunction
+  req: Request,
+  res: Response,
+  next: NextFunction
 ): Promise<void> {
   try {
     const userId = req.user!.id;
     const { setId, limit, status } = req.query;
 
     const flashcards = await learningService.getFlashcardTest(
-        userId,
-        {
-          setId: setId as string | undefined,
-          limit: limit ? parseInt(limit as string) : undefined,
-          status: status as string | undefined
-        }
+      userId,
+      {
+        setId: setId as string | undefined,
+        limit: limit ? parseInt(limit as string) : undefined,
+        status: status as string | undefined
+      }
     );
 
-    // ✅ SỬA: Truyền thẳng flashcards (đã là {userId, flashCardSets})
     sendSuccess(res, "Flashcards fetched successfully", flashcards);
   } catch (err) {
     next(err);
@@ -205,9 +204,9 @@ export async function getFlashcardTestController(
 // src/controllers/learning.controller.ts
 
 export async function batchReviewController(
-    req: Request,
-    res: Response,
-    next: NextFunction
+  req: Request,
+  res: Response,
+  next: NextFunction
 ): Promise<void> {
   try {
     const userId = req.user!.id;
@@ -217,25 +216,24 @@ export async function batchReviewController(
       throw new AppError("Invalid payload: reviews array required", HttpStatus.BAD_REQUEST);
     }
 
-    // ✅ Loop trong controller + gọi submitReview (service cũ)
     const results = await Promise.all(
-        reviews.map(async (review) => {
-          try {
-            const result = await learningService.submitReview(
-                review.wordId,
-                userId,
-                {
-                  setId: review.setId,
-                  rating: review.rating,
-                  timeSpent: review.timeSpent,
-                  reviewedAt: review.reviewedAt
-                }
-            );
-            return { wordId: review.wordId, success: true, data: result };
-          } catch (err: any) {
-            return { wordId: review.wordId, success: false, error: err.message };
-          }
-        })
+      reviews.map(async (review) => {
+        try {
+          const result = await learningService.submitReview(
+            review.wordId,
+            userId,
+            {
+              setId: review.setId,
+              rating: review.rating,
+              timeSpent: review.timeSpent,
+              reviewedAt: review.reviewedAt
+            }
+          );
+          return { wordId: review.wordId, success: true, data: result };
+        } catch (err: any) {
+          return { wordId: review.wordId, success: false, error: err.message };
+        }
+      })
     );
 
     sendSuccess(res, `Batch review completed`, {

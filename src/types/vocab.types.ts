@@ -49,6 +49,7 @@ export interface AddWordDTO {
   synonyms?: string[];
   antonyms?: string[];
   collocations?: string[];
+  relatedWords?: string[];
   note?: string;
 }
 
@@ -92,6 +93,7 @@ export interface WordResponse {
   synonyms: string[];
   antonyms: string[];
   collocations: string[];
+  relatedWords: string[];
   note?: string;
   imageUrl?: string;
   audioUrl?: string;
