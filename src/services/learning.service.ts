@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { LearningProgress } from "../models/LearningProgress";
 import { VocabularySet } from "../models/VocabularySet";
 import { Word } from "../models/Word";
@@ -18,7 +18,7 @@ import {
   SetProgressSummary,
   WordSRSProgress,
   LearningCard,
-  QueueSummary, FlashcardQuery, FlashcardContent
+  QueueSummary, FlashcardQuery, FlashcardContent, BatchSubmitReviewDTO, BatchSubmitReviewResponse
 } from "../types/learning.types";
 
 /**
@@ -579,31 +579,38 @@ export async function getHomeDashboard(userId: string) {
 export async function getFlashcardTest(
     userId: string,
     query: FlashcardQuery
-): Promise<any> { // Đổi kiểu trả về hoặc tạo interface tương ứng FlashCardTestDto
+): Promise<any> {
   const userObjectId = new Types.ObjectId(userId);
-  const now = new Date();
-  const limit = query.limit ?? 20;
 
+  // Giới hạn tối đa 100 từ/lần gọi để tránh quá tải DB, mặc định 20
+  const limit = Math.min(query.limit ?? 20, 100);
+
+  // 🔥 FILTER: Chỉ lấy từ đã học (status != new)
   const progressFilter: any = {
     userId: userObjectId,
-    status: {$ne: "new"},
-    nextReviewDate: {$lte: now}
+    status: { $ne: "new" }
+    // ✅ ĐÃ BỎ: nextReviewDate: { $lte: now }
+    // Lý do: Để user có thể "học trước" từ của ngày mai, ngày mốt nếu họ muốn học thêm.
   };
 
   if (query.setId) progressFilter.setId = new Types.ObjectId(query.setId);
-  if (query.status && query.status !== "new") progressFilter.status = query.status;
 
+  // 🔥 SORT: Sắp xếp ưu tiên
+  // 1. Từ nào đến hạn sớm nhất (nextReviewDate: 1) -> Ưu tiên số 1
+  // 2. Từ nào có độ khó cao nhất (easeFactor: 1) -> Ưu tiên số 2 (nếu cùng ngày đến hạn)
   const progresses = await LearningProgress.find(progressFilter)
-      .sort({nextReviewDate: 1, easeFactor: 1})
+      .sort({ nextReviewDate: 1, easeFactor: 1 })
       .limit(limit)
       .populate("wordId")
       .populate("setId", "category")
       .lean();
 
-  // 🔥 MAP DỮ LIỆU
+  //  MAP DỮ LIỆU RA DTO CHO ANDROID
   const flashCardSets = progresses
       .filter((p: any) => p.wordId)
       .map((p: any) => ({
+        id: p.wordId._id.toString(),
+        setId: p.setId?._id.toString() ?? "",
         category: p.setId?.category ?? "general",
         word: p.wordId.word ?? "",
         phonetic: p.wordId.pronunciation ?? "",
@@ -611,14 +618,19 @@ export async function getFlashcardTest(
         definition: p.wordId.meaning ?? "",
         example: Array.isArray(p.wordId.examples) && p.wordId.examples.length > 0
             ? p.wordId.examples[0]
-            : ""
+            : "",
+        audioUrl: p.wordId.audioUrl ?? ""
       }));
 
-  // 🔥 BỌC LẠI OBJECT CHO KHỚP VỚI ANDROID
   return {
     userId: userId,
-    flashCardSets: flashCardSets
-  }
+    flashCardSets: flashCardSets,
+    remainingCount: await LearningProgress.countDocuments({
+      userId: userObjectId,
+      status: { $ne: "new" },
+      _id: { $nin: progresses.map(p => p._id) }
+    })
+  };
 }
 async function calculateCurrentStreak(userId: string): Promise<number> {
   const stats = await DailyStats.find({ userId: new Types.ObjectId(userId) })
@@ -642,3 +654,142 @@ async function calculateCurrentStreak(userId: string): Promise<number> {
   return streak;
 }
 
+// services/learning.service.ts
+export async function submitBatchReview(
+    userId: string,
+    data: BatchSubmitReviewDTO
+): Promise<BatchSubmitReviewResponse> {
+  const userObjectId = new Types.ObjectId(userId);
+  const results: SubmitReviewResponse[] = [];
+  const errors: Array<{ wordId: string; error: string }> = [];
+
+  // 🔥 Dùng session transaction để đảm bảo atomic
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    for (const review of data.reviews) {
+      try {
+        const result = await submitReviewSingle(
+            review.wordId,
+            userId,
+            {
+              setId: review.setId,
+              rating: review.rating,
+              reviewedAt: review.reviewedAt,
+              timeSpent: review.timeSpent
+            },
+            session
+        );
+        results.push(result);
+      } catch (err: any) {
+        errors.push({
+          wordId: review.wordId,
+          error: err.message || "Unknown error"
+        });
+      }
+    }
+
+    await session.commitTransaction();
+
+    return {
+      results,
+      successCount: results.length,
+      failedCount: errors.length,
+      errors: errors.length > 0 ? errors : undefined
+    };
+  } catch (err) {
+    await session.abortTransaction();
+    throw err;
+  } finally {
+    session.endSession();
+  }
+}
+
+// 🔥 Tách hàm submitReviewSingle để tái sử dụng
+async function submitReviewSingle(
+    wordId: string,
+    userId: string,
+    data: SubmitReviewDTO,
+    session?: mongoose.ClientSession
+): Promise<SubmitReviewResponse> {
+  const wordObjectId = new Types.ObjectId(wordId);
+  const userObjectId = new Types.ObjectId(userId);
+  const setObjectId = new Types.ObjectId(data.setId);
+
+  // Clock skew check
+  if (data.reviewedAt) {
+    const timeDiff = Math.abs(Date.now() - new Date(data.reviewedAt).getTime());
+    if (timeDiff > 30 * 60 * 1000) {
+      throw new AppError("Clock skew detected (> 30 min)", HttpStatus.BAD_REQUEST, "ERR_CLOCK_SKEW");
+    }
+  }
+
+  // Tìm progress cũ
+  const progress = await LearningProgress.findOne(
+      { userId: userObjectId, wordId: wordObjectId },
+      {},
+      { session }
+  );
+  const previousStatus = progress?.status ?? "new";
+
+  const sm2Input = {
+    easeFactor: progress?.easeFactor ?? 2.5,
+    interval: progress?.interval ?? 0,
+    repetitions: progress?.repetitions ?? 0
+  };
+
+  const sm2Result = applyReview(sm2Input, data.rating);
+  const isCorrect = ["good", "easy"].includes(data.rating);
+
+  const updatedProgress = await LearningProgress.findOneAndUpdate(
+      { userId: userObjectId, wordId: wordObjectId },
+      {
+        $set: {
+          setId: setObjectId,
+          easeFactor: sm2Result.easeFactor,
+          interval: sm2Result.interval,
+          repetitions: sm2Result.repetitions,
+          status: sm2Result.status,
+          nextReviewDate: sm2Result.nextReviewDate,
+          lastReviewDate: data.reviewedAt ? new Date(data.reviewedAt) : new Date(),
+          lastRating: data.rating
+        },
+        $inc: {
+          totalReviews: 1,
+          correctReviews: isCorrect ? 1 : 0
+        }
+      },
+      { new: true, upsert: true, session }
+  );
+
+  // DailyStats
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+
+  await DailyStats.findOneAndUpdate(
+      { userId: userObjectId, date: todayMidnight },
+      {
+        $inc: {
+          wordsReviewed: 1,
+          correctAnswers: isCorrect ? 1 : 0,
+          totalAnswers: 1,
+          timeSpent: data.timeSpent ?? 0,
+          newWordsLearned: previousStatus === "new" ? 1 : 0
+        }
+      },
+      { upsert: true, session }
+  );
+
+  return {
+    wordId: updatedProgress.wordId.toString(),
+    previousStatus,
+    newStatus: updatedProgress.status,
+    easeFactor: updatedProgress.easeFactor,
+    interval: updatedProgress.interval,
+    repetitions: updatedProgress.repetitions,
+    nextReviewDate: updatedProgress.nextReviewDate.toISOString(),
+    totalReviews: updatedProgress.totalReviews,
+    correctReviews: updatedProgress.correctReviews
+  };
+}

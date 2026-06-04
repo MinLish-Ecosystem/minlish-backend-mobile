@@ -123,8 +123,12 @@ export const refreshTokenService = async (refreshToken: string) => {
     role: user.role,
   };
   const newAccessToken = signAccessToken(newPayload);
+  const newRefreshToken = signRefreshToken(newPayload)
 
-  return { accessToken: newAccessToken };
+  return {
+    accessToken: newAccessToken,
+    refreshToken: newRefreshToken
+  };
 };
 
 /**

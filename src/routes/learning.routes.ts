@@ -9,7 +9,11 @@ import {
     getSetLearningQueueController,
     getSetProgressSummaryController,
     getWordSRSProgressController,
-    batchSyncController, getHomeDashboardController, getFlashcardTestController, batchReviewController
+    batchSyncController,
+    getHomeDashboardController,
+    getFlashcardTestController,
+    batchReviewController,
+    submitBatchReviewController
 } from "../controllers/learning.controller";
 
 /**
@@ -393,4 +397,6 @@ router.post(
     validate,
     batchReviewController
 );
+
+router.post("/submit-review-batch", verifyToken, submitBatchReviewController);
 export default router;

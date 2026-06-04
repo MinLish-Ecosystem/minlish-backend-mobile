@@ -3,6 +3,7 @@ import * as learningService from "../services/learning.service";
 import { sendSuccess } from "../utils/response.util";
 import { AppError } from "../utils/AppError";
 import { HttpStatus } from "../constants/httpStatus";
+import {BatchSubmitReviewDTO} from "../types/learning.types";
 
 /**
  * GET /api/v1/learning/due-summary
@@ -243,6 +244,31 @@ export async function batchReviewController(
       successCount: results.filter(r => r.success).length,
       results
     });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// controllers/learning.controller.ts
+export async function submitBatchReviewController(
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> {
+  try {
+    const userId = req.user!.id;
+    const { reviews } = req.body as BatchSubmitReviewDTO;
+
+    if (!Array.isArray(reviews) || reviews.length === 0) {
+      throw new AppError("Reviews must be a non-empty array", HttpStatus.BAD_REQUEST);
+    }
+
+    if (reviews.length > 100) {
+      throw new AppError("Batch size exceeds limit (max 100)", HttpStatus.BAD_REQUEST);
+    }
+
+    const result = await learningService.submitBatchReview(userId, { reviews });
+    sendSuccess(res, "Batch review submitted successfully", result);
   } catch (err) {
     next(err);
   }
