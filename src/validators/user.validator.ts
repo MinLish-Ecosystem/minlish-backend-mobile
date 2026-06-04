@@ -11,7 +11,16 @@ export const updateProfileValidator = [
 
   body('avatar')
     .optional()
-    .isURL().withMessage('Avatar must be a valid URL')
+    .custom((value) => {
+      if (!value) return true;
+      const isBase64 = value.startsWith('data:image/') || value.includes('base64,');
+      if (isBase64) return true;
+      const urlPattern = /^(https?:\/\/)?([\da-z\.-]+)\.([a-z\.]{2,6})([\/\w \.-]*)*\/?$/;
+      if (!urlPattern.test(value)) {
+        throw new Error('Avatar must be a valid URL or base64 image string');
+      }
+      return true;
+    })
     .trim(),
 ];
 
