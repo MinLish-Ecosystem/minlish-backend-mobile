@@ -519,47 +519,62 @@ export async function getWordSRSProgress(
 }
 
 export async function getHomeDashboard(userId: string) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const userObjectId = new Types.ObjectId(userId);
+  const now = new Date();
 
-  // Aggregate tính newWords & reviewsDue
-  const summary = await LearningProgress.aggregate([
-    { $match: { userId: new Types.ObjectId(userId) } },
-    { $facet: {
-        newWords: [{ $match: { status: "new" } }, { $count: "count" }],
-        reviewsDue: [{
-          $match: { status: "review", nextReviewDate: { $lt: tomorrow } }
-        }, { $count: "count" }]
-      }
-    }
-  ]);
+  // ─── Tính mốc thời gian (giống getFlashcardTest) ───
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
 
-  const newWords = summary[0].newWords[0]?.count || 0;
-  const reviewsDue = summary[0].reviewsDue[0]?.count || 0;
+  const tomorrowEnd = new Date(now);
+  tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
+  tomorrowEnd.setHours(23, 59, 59, 999);
 
-  // Lấy danh sách sets của user
+  // ─── Lấy các set của user ───
   const sets = await VocabularySet.find({
-    userId: new Types.ObjectId(userId),
+    userId: userObjectId,
     isDeleted: { $ne: true }
-  }).select("_id name colorTheme totalWords").lean();  // ← Chọn đúng field
+  }).select("_id name colorTheme totalWords").lean();
 
-  // Check set nào có từ cần ôn hôm nay
-  const setIds = sets.map(s => s._id.toString());
-  const dueSetIds = await LearningProgress.distinct("setId", {
-    userId: new Types.ObjectId(userId),
-    setId: { $in: setIds },
-    nextReviewDate: { $lt: tomorrow },
-    status: { $in: ["learning", "review"] }
+  const userSetIds = sets.map(s => s._id);
+  const userSetIdStrings = userSetIds.map(id => id.toString());
+
+  // ─── 1. Đếm NEW WORDS (từ chưa học - giống logic new cards trong getFlashcardTest) ───
+  const allLearnedWordIds = await LearningProgress.find({
+    userId: userObjectId,
+    setId: { $in: userSetIds }
+  }).distinct("wordId");
+
+  const newWords = await Word.countDocuments({
+    setId: { $in: userSetIds },
+    isDeleted: { $ne: true },
+    _id: { $nin: allLearnedWordIds }  // ✅ Chưa có trong LearningProgress
   });
+
+  // ─── 2. Đếm REVIEWS DUE (giống logic review cards trong getFlashcardTest) ───
+  const reviewFilter = {
+    userId: userObjectId,
+    setId: { $in: userSetIds },
+    status: { $ne: "new" },
+    nextReviewDate: { $lte: tomorrowEnd },
+    $or: [
+      { lastReviewDate: { $exists: false } },
+      { lastReviewDate: { $lt: todayStart } }  // ✅ Chưa review hôm nay
+    ]
+  };
+
+  const reviewsDue = await LearningProgress.countDocuments(reviewFilter);
+
+  // ─── 3. Check set nào có từ cần ôn hôm nay ───
+  const dueSetIds = await LearningProgress.distinct("setId", reviewFilter);
   const dueSetIdStrings = dueSetIds.map(id => id.toString());
-  // Map sang LearningDto - khớp 100%
+
+  // ─── 4. Map sang DTO ───
   const vocabSets = sets.map(s => ({
     id: s._id.toString(),
     title: s.name,
-    wordCount: s.totalWords ?? 0,    // ← totalWords từ model
-    icon: null,                      // ← FE tự handle default icon
+    wordCount: s.totalWords ?? 0,
+    icon: null,
     isDueToday: dueSetIdStrings.includes(s._id.toString())
   }));
 
