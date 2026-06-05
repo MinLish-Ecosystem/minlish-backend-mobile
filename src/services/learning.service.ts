@@ -581,41 +581,65 @@ export async function getFlashcardTest(
     query: FlashcardQuery
 ): Promise<any> {
   const userObjectId = new Types.ObjectId(userId);
-  const limit = Math.min(query.limit ?? 20, 100);
+  const now = new Date();
 
-  // ✅ FILTER MỚI: Lấy cả từ mới VÀ từ đã học
-  const progressFilter: any = {
+  // ✅ Đọc config, dùng dailyGoal làm TỔNG giới hạn cho 1 buổi học (mặc định 20)
+  const profile = await UserProfile.findOne({ userId: userObjectId }).lean();
+  const sessionLimit = profile?.dailyGoal ?? 20;
+
+  // ─── Tính mốc thời gian ──
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+
+  const tomorrowEnd = new Date(now);
+  tomorrowEnd.setDate(tomorrowEnd.getDate() + 1);
+  tomorrowEnd.setHours(23, 59, 59, 999);
+
+  // ─── PHẦN 1: REVIEW CARDS (Ưu tiên lấy trước) ───
+  const reviewFilter: any = {
     userId: userObjectId,
-    // ❌ BỎ: status: { $ne: "new" }
-    // ✅ THÊM: Lấy tất cả status (bao gồm "new")
+    status: { $ne: "new" },
+    nextReviewDate: { $lte: tomorrowEnd }, // Lấy đến hạn đến hết ngày mai
+    $or: [
+      { lastReviewDate: { $exists: false } },
+      { lastReviewDate: { $lt: todayStart } }  // Loại từ vừa review hôm nay
+    ]
   };
 
-  if (query.setId) progressFilter.setId = new Types.ObjectId(query.setId);
+  if (query.setId) reviewFilter.setId = new Types.ObjectId(query.setId);
 
-  // Lấy các từ đã có LearningProgress
-  const progresses = await LearningProgress.find(progressFilter)
+  // ✅ Giới hạn review bằng sessionLimit (20)
+  const reviewProgresses = await LearningProgress.find(reviewFilter)
       .sort({
-        nextReviewDate: 1,  // Ưu tiên từ đến hạn sớm
-        easeFactor: 1       // Ưu tiên từ khó
+        nextReviewDate: 1,
+        easeFactor: 1,
+        repetitions: 1
       })
-      .limit(limit)
+      .limit(sessionLimit)
       .populate("wordId")
       .populate("setId", "category")
       .lean();
 
-  // ✅ THÊM: Lấy từ mới chưa có LearningProgress (nếu chưa đủ limit)
-  const existingWordIds = progresses.map((p: any) => p.wordId._id.toString());
+  // ─── PHẦN 2: NEW CARDS (Lấy phần còn thiếu để đủ 20 từ) ───
+  // ✅ Tính số từ mới cần lấy thêm = Tổng giới hạn - Số review đã lấy
+  const remainingForNew = Math.max(0, sessionLimit - reviewProgresses.length);
+
+  const allLearnedWordIdsFilter: any = { userId: userObjectId };
+  if (query.setId) allLearnedWordIdsFilter.setId = new Types.ObjectId(query.setId);
+
+  const allLearnedWordIds = await LearningProgress.find(allLearnedWordIdsFilter)
+      .distinct("wordId");
+
   const setObjectId = query.setId ? new Types.ObjectId(query.setId) : null;
 
   const wordFilter: any = {
-    _id: { $nin: existingWordIds.map(id => new Types.ObjectId(id)) },
+    _id: { $nin: allLearnedWordIds },
     isDeleted: { $ne: true }
   };
 
   if (setObjectId) {
     wordFilter.setId = setObjectId;
   } else {
-    // Nếu không filter theo setId, lấy từ tất cả sets của user
     const userSetIds = await VocabularySet.find({
       userId: userObjectId,
       isDeleted: { $ne: true }
@@ -623,20 +647,20 @@ export async function getFlashcardTest(
     wordFilter.setId = { $in: userSetIds };
   }
 
-  const remainingLimit = limit - progresses.length;
-  const newWords = remainingLimit > 0
+  // ✅ Chỉ lấy đúng số từ còn thiếu (Ví dụ: đã có 4 reviews thì chỉ lấy 16 new)
+  const newWords = remainingForNew > 0
       ? await Word.find(wordFilter)
-          .limit(remainingLimit)
+          .limit(remainingForNew)
           .populate("setId", "category")
           .lean()
       : [];
 
-  // ✅ MAP: Kết hợp từ đã học và từ mới
-  const learnedCards = progresses
+  // ─── MAP kết quả ───
+  const reviewCards = reviewProgresses
       .filter((p: any) => p.wordId)
       .map((p: any) => ({
         id: p.wordId._id.toString(),
-        setId: p.setId?._id.toString() ?? "",
+        setId: p.setId?._id?.toString() ?? p.setId?.toString() ?? "",
         category: p.setId?.category ?? "general",
         word: p.wordId.word ?? "",
         phonetic: p.wordId.pronunciation ?? "",
@@ -646,13 +670,18 @@ export async function getFlashcardTest(
             ? p.wordId.examples[0]
             : "",
         audioUrl: p.wordId.audioUrl ?? "",
-        status: p.status  // ✅ Thêm field status
+        status: p.status,
+        easeFactor: p.easeFactor,
+        interval: p.interval,
+        repetitions: p.repetitions,
+        nextReviewDate: p.nextReviewDate.toISOString(),
+        isDueToday: p.nextReviewDate <= now
       }));
 
   const newCards = newWords.map((w: any) => ({
     id: w._id.toString(),
-    setId: w.setId?.toString() ?? "",
-    category: (w.setId as any)?.category ?? "general",
+    setId: w.setId?._id?.toString() ?? w.setId?.toString() ?? "",
+    category: w.setId?.category ?? "general",
     word: w.word ?? "",
     phonetic: w.pronunciation ?? "",
     partOfSpeech: w.partOfSpeech ?? "",
@@ -661,19 +690,18 @@ export async function getFlashcardTest(
         ? w.examples[0]
         : "",
     audioUrl: w.audioUrl ?? "",
-    status: "new"  // ✅ Mark là từ mới
+    status: "new"
   }));
 
-  const flashCardSets = [...learnedCards, ...newCards];
+  const flashCardSets = [...reviewCards, ...newCards];
 
-  // ✅ Tính remainingCount chính xác hơn
-  const totalLearned = await LearningProgress.countDocuments({
-    userId: userObjectId,
-    ...(query.setId ? { setId: new Types.ObjectId(query.setId) } : {}),
-    _id: { $nin: progresses.map(p => p._id) }
+  // Tính remaining count
+  const totalRemainingReviews = await LearningProgress.countDocuments({
+    ...reviewFilter,
+    _id: { $nin: reviewProgresses.map(p => p._id) }
   });
 
-  const totalNew = await Word.countDocuments({
+  const totalRemainingNew = await Word.countDocuments({
     ...wordFilter,
     _id: { $nin: newWords.map(w => w._id) }
   });
@@ -681,7 +709,9 @@ export async function getFlashcardTest(
   return {
     userId: userId,
     flashCardSets: flashCardSets,
-    remainingCount: totalLearned + totalNew
+    reviewCount: reviewCards.length,
+    newCount: newCards.length,
+    remainingCount: totalRemainingReviews + totalRemainingNew
   };
 }
 async function calculateCurrentStreak(userId: string): Promise<number> {
@@ -715,11 +745,30 @@ export async function submitBatchReview(
   const results: SubmitReviewResponse[] = [];
   const errors: Array<{ wordId: string; error: string }> = [];
 
-  // 🔥 Dùng session transaction để đảm bảo atomic
   const session = await mongoose.startSession();
   session.startTransaction();
 
   try {
+    // 🔥 CHECK 1: Tất cả setId phải giống nhau
+    const uniqueSetIds = [...new Set(data.reviews.map(r => r.setId))];
+
+    if (uniqueSetIds.length === 1) {
+      const setObjectId = new Types.ObjectId(uniqueSetIds[0]);
+
+      // 🔥 CHECK 2: Set không phải của user hiện tại
+      const vocabSet = await VocabularySet.findById(setObjectId).session(session);
+
+      if (vocabSet && vocabSet.userId.toString() !== userId) {
+        // Tăng learnerCount +1
+        await VocabularySet.findByIdAndUpdate(
+            setObjectId,
+            { $inc: { learnerCount: 1 } },
+            { session }
+        );
+      }
+    }
+
+    // Process reviews
     for (const review of data.reviews) {
       try {
         const result = await submitReviewSingle(
