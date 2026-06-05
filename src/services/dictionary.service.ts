@@ -15,7 +15,7 @@ export async function lookupWord(word: string) {
 
     // 1. Check cache
     if (dictionaryCache.has(cleanWord)) {
-        return dictionaryCache.get(cleanWord);
+        return dictionaryCache.get(cleanWord).data;
     }
 
     try {

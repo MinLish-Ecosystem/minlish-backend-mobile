@@ -1,4 +1,4 @@
-import { transporter } from '../config/mailer';
+import { transporter } from "../config/mailer";
 
 // ─── Email HTML Templates ─────────────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ const welcomeTemplate = (name: string): string => `
             <li>Theo dõi tiến độ học tập</li>
           </ul>
         </div>
-        <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}" 
+        <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}" 
            style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:15px;">
           Bắt đầu học ngay →
         </a>
@@ -144,7 +144,11 @@ const otpResetTemplate = (name: string, otp: string): string => `
 /**
  * Template email OTP đổi email
  */
-const otpChangeEmailTemplate = (name: string, otp: string, newEmail: string): string => `
+const otpChangeEmailTemplate = (
+  name: string,
+  otp: string,
+  newEmail: string,
+): string => `
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -186,10 +190,17 @@ const otpChangeEmailTemplate = (name: string, otp: string, newEmail: string): st
 
 // ─── Mail Service Functions ───────────────────────────────────────────────────
 
-const sendMailAndLog = async (options: Parameters<typeof transporter.sendMail>[0], label: string): Promise<void> => {
+const sendMailAndLog = async (
+  options: Parameters<typeof transporter.sendMail>[0],
+  label: string,
+): Promise<void> => {
   const info = await transporter.sendMail(options);
-  const accepted = Array.isArray(info.accepted) ? info.accepted.join(', ') : String(info.accepted);
-  const rejected = Array.isArray(info.rejected) ? info.rejected.join(', ') : String(info.rejected);
+  const accepted = Array.isArray(info.accepted)
+    ? info.accepted.join(", ")
+    : String(info.accepted);
+  const rejected = Array.isArray(info.rejected)
+    ? info.rejected.join(", ")
+    : String(info.rejected);
 
   console.log(`📧 ${label} sent`, {
     messageId: info.messageId,
@@ -205,13 +216,19 @@ const sendMailAndLog = async (options: Parameters<typeof transporter.sendMail>[0
 /**
  * Gửi email chào mừng sau khi đăng ký
  */
-export const sendWelcomeEmail = async (to: string, name: string): Promise<void> => {
-  await sendMailAndLog({
-    from: `"Minlish 🎓" <${process.env.MAIL_USER}>`,
-    to,
-    subject: `Chào mừng ${name} đến với Minlish! 🎉`,
-    html: welcomeTemplate(name),
-  }, 'Welcome email');
+export const sendWelcomeEmail = async (
+  to: string,
+  name: string,
+): Promise<void> => {
+  await sendMailAndLog(
+    {
+      from: `"Minlish 🎓" <${process.env.MAIL_USER}>`,
+      to,
+      subject: `Chào mừng ${name} đến với Minlish! 🎉`,
+      html: welcomeTemplate(name),
+    },
+    "Welcome email",
+  );
 };
 
 /**
@@ -220,14 +237,17 @@ export const sendWelcomeEmail = async (to: string, name: string): Promise<void> 
 export const sendPasswordResetEmail = async (
   to: string,
   name: string,
-  otp: string
+  otp: string,
 ): Promise<void> => {
-  await sendMailAndLog({
-    from: `"Minlish 🔐" <${process.env.MAIL_USER}>`,
-    to,
-    subject: 'Đặt lại mật khẩu Minlish',
-    html: otpResetTemplate(name, otp),
-  }, 'Password reset OTP');
+  await sendMailAndLog(
+    {
+      from: `"Minlish 🔐" <${process.env.MAIL_USER}>`,
+      to,
+      subject: "Đặt lại mật khẩu Minlish",
+      html: otpResetTemplate(name, otp),
+    },
+    "Password reset OTP",
+  );
 };
 
 /**
@@ -236,14 +256,17 @@ export const sendPasswordResetEmail = async (
 export const sendOTPRegistrationEmail = async (
   to: string,
   name: string,
-  otp: string
+  otp: string,
 ): Promise<void> => {
-  await sendMailAndLog({
-    from: `"Minlish 🎓" <${process.env.MAIL_USER}>`,
-    to,
-    subject: 'Kích hoạt tài khoản Minlish',
-    html: otpRegistrationTemplate(name, otp),
-  }, 'Registration OTP');
+  await sendMailAndLog(
+    {
+      from: `"Minlish 🎓" <${process.env.MAIL_USER}>`,
+      to,
+      subject: "Kích hoạt tài khoản Minlish",
+      html: otpRegistrationTemplate(name, otp),
+    },
+    "Registration OTP",
+  );
 };
 
 /**
@@ -253,20 +276,27 @@ export const sendEmailChangeRequestEmail = async (
   to: string,
   name: string,
   otp: string,
-  newEmail: string
+  newEmail: string,
 ): Promise<void> => {
-  await sendMailAndLog({
-    from: `"Minlish 🔁" <${process.env.MAIL_USER}>`,
-    to,
-    subject: 'Xác nhận thay đổi email Minlish',
-    html: otpChangeEmailTemplate(name, otp, newEmail),
-  }, 'Email change OTP');
+  await sendMailAndLog(
+    {
+      from: `"Minlish 🔁" <${process.env.MAIL_USER}>`,
+      to,
+      subject: "Xác nhận thay đổi email Minlish",
+      html: otpChangeEmailTemplate(name, otp, newEmail),
+    },
+    "Email change OTP",
+  );
 };
 
 /**
  * Template email nhắc học hàng ngày
  */
-const dailyReminderTemplate = (name: string, dueCount: number, newWordsLeft: number): string => `
+const dailyReminderTemplate = (
+  name: string,
+  dueCount: number,
+  newWordsLeft: number,
+): string => `
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -283,21 +313,21 @@ const dailyReminderTemplate = (name: string, dueCount: number, newWordsLeft: num
     </tr>
     <tr>
       <td style="padding:40px;">
-        <h2 style="color:#1a1a2e;font-size:22px;margin:0 0 16px;">Chào mừng quay trở lại, \${name}! 👋</h2>
+        <h2 style="color:#1a1a2e;font-size:22px;margin:0 0 16px;">Chào mừng quay trở lại, ${name}! 👋</h2>
         <p style="color:#555;line-height:1.7;margin:0 0 24px;">
           Đã đến giờ học hàng ngày của bạn tại Minlish. Hôm nay bạn đang có các cột mốc cần hoàn thành:
         </p>
         <div style="background:#f8f9ff;border-radius:12px;padding:20px;margin:0 0 24px;">
           <p style="color:#667eea;font-weight:600;margin:0 0 12px;">📊 Chỉ số học tập hôm nay:</p>
           <ul style="color:#555;line-height:2.2;margin:0;padding-left:20px;">
-            <li>🧠 Số từ vựng đến hạn ôn tập (SRS): <strong style="color:#e63946;font-size:16px;">\${dueCount}</strong> từ</li>
-            <li>📚 Số từ mới chưa học (Mục tiêu ngày): <strong style="color:#4f46e5;font-size:16px;">\${newWordsLeft}</strong> từ</li>
+            <li>🧠 Số từ vựng đến hạn ôn tập (SRS): <strong style="color:#e63946;font-size:16px;">${dueCount}</strong> từ</li>
+            <li>📚 Số từ mới chưa học (Mục tiêu ngày): <strong style="color:#4f46e5;font-size:16px;">${newWordsLeft}</strong> từ</li>
           </ul>
         </div>
         <p style="color:#555;line-height:1.7;margin:0 0 24px;">
           Dành ra 5 phút ôn bài ngay bây giờ để kích hoạt lại trí nhớ dài hạn và giữ vững chuỗi <b>Streak lửa</b> nhé!
         </p>
-        <a href="\${process.env.FRONTEND_URL || 'http://localhost:5173'}" 
+        <a href="${process.env.FRONTEND_URL || "http://localhost:5173"}" 
            style="display:inline-block;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-weight:600;font-size:15px;">
           Bắt đầu luyện tập →
         </a>
@@ -322,12 +352,15 @@ export const sendDailyReminderEmail = async (
   to: string,
   name: string,
   dueCount: number,
-  newWordsLeft: number
+  newWordsLeft: number,
 ): Promise<void> => {
-  await sendMailAndLog({
-    from: `"Minlish ⏰" <\${process.env.MAIL_USER}>`,
-    to,
-    subject: '⏰ MinLish - Đã đến giờ học hàng ngày của bạn!',
-    html: dailyReminderTemplate(name, dueCount, newWordsLeft),
-  }, 'Daily reminder email');
+  await sendMailAndLog(
+    {
+      from: `"Minlish ⏰" <${process.env.MAIL_USER}>`,
+      to,
+      subject: "⏰ MinLish - Đã đến giờ học hàng ngày của bạn!",
+      html: dailyReminderTemplate(name, dueCount, newWordsLeft),
+    },
+    "Daily reminder email",
+  );
 };
