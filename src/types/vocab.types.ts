@@ -51,6 +51,8 @@ export interface AddWordDTO {
   collocations?: string[];
   relatedWords?: string[];
   note?: string;
+  audioUrl?: string;
+  imageUrl?: string;
 }
 
 // ─── Response DTOs (what API returns) ─────────────────────────────

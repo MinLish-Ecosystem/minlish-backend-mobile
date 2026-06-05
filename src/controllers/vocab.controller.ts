@@ -49,13 +49,14 @@ export async function getUserSetsController(
 }
 
 export async function getPublicSetsController(
-  req: Request,
-  res: Response,
-  next: NextFunction,
+    req: Request,
+    res: Response,
+    next: NextFunction,
 ): Promise<void> {
   try {
+    const userId = req.user!.id;  // ✅ Lấy userId từ token (đã qua authenticate)
     const filters = parseFilters(req.query);
-    const result  = await vocabService.getPublicSets(filters);
+    const result  = await vocabService.getPublicSets(userId, filters);  // ✅ Truyền userId
     sendSuccess(res, "Public sets fetched", result);
   } catch (err) {
     next(err);

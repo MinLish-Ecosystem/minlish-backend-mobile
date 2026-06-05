@@ -581,32 +581,58 @@ export async function getFlashcardTest(
     query: FlashcardQuery
 ): Promise<any> {
   const userObjectId = new Types.ObjectId(userId);
-
-  // Giới hạn tối đa 100 từ/lần gọi để tránh quá tải DB, mặc định 20
   const limit = Math.min(query.limit ?? 20, 100);
 
-  // 🔥 FILTER: Chỉ lấy từ đã học (status != new)
+  // ✅ FILTER MỚI: Lấy cả từ mới VÀ từ đã học
   const progressFilter: any = {
     userId: userObjectId,
-    status: { $ne: "new" }
-    // ✅ ĐÃ BỎ: nextReviewDate: { $lte: now }
-    // Lý do: Để user có thể "học trước" từ của ngày mai, ngày mốt nếu họ muốn học thêm.
+    // ❌ BỎ: status: { $ne: "new" }
+    // ✅ THÊM: Lấy tất cả status (bao gồm "new")
   };
 
   if (query.setId) progressFilter.setId = new Types.ObjectId(query.setId);
 
-  // 🔥 SORT: Sắp xếp ưu tiên
-  // 1. Từ nào đến hạn sớm nhất (nextReviewDate: 1) -> Ưu tiên số 1
-  // 2. Từ nào có độ khó cao nhất (easeFactor: 1) -> Ưu tiên số 2 (nếu cùng ngày đến hạn)
+  // Lấy các từ đã có LearningProgress
   const progresses = await LearningProgress.find(progressFilter)
-      .sort({ nextReviewDate: 1, easeFactor: 1 })
+      .sort({
+        nextReviewDate: 1,  // Ưu tiên từ đến hạn sớm
+        easeFactor: 1       // Ưu tiên từ khó
+      })
       .limit(limit)
       .populate("wordId")
       .populate("setId", "category")
       .lean();
 
-  //  MAP DỮ LIỆU RA DTO CHO ANDROID
-  const flashCardSets = progresses
+  // ✅ THÊM: Lấy từ mới chưa có LearningProgress (nếu chưa đủ limit)
+  const existingWordIds = progresses.map((p: any) => p.wordId._id.toString());
+  const setObjectId = query.setId ? new Types.ObjectId(query.setId) : null;
+
+  const wordFilter: any = {
+    _id: { $nin: existingWordIds.map(id => new Types.ObjectId(id)) },
+    isDeleted: { $ne: true }
+  };
+
+  if (setObjectId) {
+    wordFilter.setId = setObjectId;
+  } else {
+    // Nếu không filter theo setId, lấy từ tất cả sets của user
+    const userSetIds = await VocabularySet.find({
+      userId: userObjectId,
+      isDeleted: { $ne: true }
+    }).distinct("_id");
+    wordFilter.setId = { $in: userSetIds };
+  }
+
+  const remainingLimit = limit - progresses.length;
+  const newWords = remainingLimit > 0
+      ? await Word.find(wordFilter)
+          .limit(remainingLimit)
+          .populate("setId", "category")
+          .lean()
+      : [];
+
+  // ✅ MAP: Kết hợp từ đã học và từ mới
+  const learnedCards = progresses
       .filter((p: any) => p.wordId)
       .map((p: any) => ({
         id: p.wordId._id.toString(),
@@ -619,17 +645,43 @@ export async function getFlashcardTest(
         example: Array.isArray(p.wordId.examples) && p.wordId.examples.length > 0
             ? p.wordId.examples[0]
             : "",
-        audioUrl: p.wordId.audioUrl ?? ""
+        audioUrl: p.wordId.audioUrl ?? "",
+        status: p.status  // ✅ Thêm field status
       }));
+
+  const newCards = newWords.map((w: any) => ({
+    id: w._id.toString(),
+    setId: w.setId?.toString() ?? "",
+    category: (w.setId as any)?.category ?? "general",
+    word: w.word ?? "",
+    phonetic: w.pronunciation ?? "",
+    partOfSpeech: w.partOfSpeech ?? "",
+    definition: w.meaning ?? "",
+    example: Array.isArray(w.examples) && w.examples.length > 0
+        ? w.examples[0]
+        : "",
+    audioUrl: w.audioUrl ?? "",
+    status: "new"  // ✅ Mark là từ mới
+  }));
+
+  const flashCardSets = [...learnedCards, ...newCards];
+
+  // ✅ Tính remainingCount chính xác hơn
+  const totalLearned = await LearningProgress.countDocuments({
+    userId: userObjectId,
+    ...(query.setId ? { setId: new Types.ObjectId(query.setId) } : {}),
+    _id: { $nin: progresses.map(p => p._id) }
+  });
+
+  const totalNew = await Word.countDocuments({
+    ...wordFilter,
+    _id: { $nin: newWords.map(w => w._id) }
+  });
 
   return {
     userId: userId,
     flashCardSets: flashCardSets,
-    remainingCount: await LearningProgress.countDocuments({
-      userId: userObjectId,
-      status: { $ne: "new" },
-      _id: { $nin: progresses.map(p => p._id) }
-    })
+    remainingCount: totalLearned + totalNew
   };
 }
 async function calculateCurrentStreak(userId: string): Promise<number> {
