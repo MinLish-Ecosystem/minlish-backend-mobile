@@ -527,14 +527,49 @@ export async function getWords(
  * TODO (Người 1): Implement body của function này
  */
 export async function addWord(
-  setId: string,
-  userId: string,
-  data: AddWordDTO,
+    setId: string,
+    userId: string,
+    data: AddWordDTO,
 ): Promise<WordResponse> {
   await ensureOwnedSet(setId, userId);
+  const setObjectId = new Types.ObjectId(setId);
 
+  // 1. Tìm từ vựng trong set (BAO GỒM CẢ ĐANG BỊ XÓA MỀM)
+  // Giả sử field chứa nội dung từ vựng tên là 'word' (bạn thay bằng tên field thực tế nếu khác)
+  const existingWord = await Word.findOne({
+    setId: setObjectId,
+    word: data.word
+  });
+
+  if (existingWord) {
+    // Trường hợp A: Từ đã bị xóa mềm trước đó -> KHÔI PHỤC LẠI
+    if (existingWord.isDeleted) {
+      existingWord.isDeleted = false;
+      existingWord.deletedAt = undefined; // Xóa thời gian xóa
+
+      // Cập nhật lại các thông tin mới (nếu user sửa lại nghĩa, ví dụ...)
+      Object.assign(existingWord, data);
+      await existingWord.save();
+
+      // Vì lúc xóa bạn đã $inc: { totalWords: -1 }, giờ phải cộng lại +1
+      await VocabularySet.findByIdAndUpdate(setId, { $inc: { totalWords: 1 } });
+
+      return mapWordToResponse(existingWord.toObject());
+    }
+
+    // Trường hợp B: Từ đang hoạt động bình thường -> Báo lỗi trùng
+    else {
+      throw new AppError(
+          `Từ "${data.word}" đã tồn tại trong bộ từ vựng này`,
+          HttpStatus.CONFLICT,
+          ErrorCodes.VALIDATION_FAILED
+      );
+    }
+  }
+
+  // 2. Nếu chưa từng tồn tại (kể cả trong thùng rác) -> Tạo mới hoàn toàn
   const word = await new Word({
-    setId: new Types.ObjectId(setId),
+    setId: setObjectId,
     ...data,
   }).save();
 
