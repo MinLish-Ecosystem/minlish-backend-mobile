@@ -50,51 +50,51 @@ export const createSetValidator = [
  */
 export const addWordValidator = [
   body("word")
-    .trim()
-    .notEmpty().withMessage("Word is required")
-    .isLength({ max: 100 }).withMessage("Word cannot exceed 100 characters"),
-
+      .trim()
+      .notEmpty().withMessage("Word is required")
+      .isLength({max: 100}).withMessage("Word cannot exceed 100 characters"),
   body("meaning")
-    .trim()
-    .notEmpty().withMessage("Meaning (definition) is required")
-    .isLength({ max: 500 }).withMessage("Meaning cannot exceed 500 characters"),
-
+      .trim()
+      .notEmpty().withMessage("Meaning (definition) is required")
+      .isLength({max: 500}).withMessage("Meaning cannot exceed 500 characters"),
   body("pronunciation")
-    .optional()
-    .isString().withMessage("Pronunciation must be a string"),
-
+      .optional()
+      .isString().withMessage("Pronunciation must be a string"),
   body("partOfSpeech")
-    .optional()
-    .isIn(["noun", "verb", "adjective", "adverb", "phrase", "idiom", "other"])
-    .withMessage("Invalid part of speech"),
-
+      .optional()
+      .isIn(["noun","verb","adjective","adverb","phrase","idiom","other"])
+      .withMessage("Invalid part of speech"),
   body("descriptionEN")
-    .optional()
-    .isLength({ max: 1000 }).withMessage("Description cannot exceed 1000 characters"),
-
+      .optional()
+      .isLength({max: 1000}).withMessage("Description cannot exceed 1000 characters"),
   body("examples")
-    .optional()
-    .isArray({ max: 5 }).withMessage("Cannot have more than 5 examples"),
-
+      .optional()
+      .isArray({max: 5}).withMessage("Cannot have more than 5 examples"),
   body("synonyms")
-    .optional()
-    .isArray({ max: 10 }).withMessage("Cannot have more than 10 synonyms"),
-
+      .optional()
+      .isArray({max: 10}).withMessage("Cannot have more than 10 synonyms"),
   body("antonyms")
-    .optional()
-    .isArray({ max: 10 }).withMessage("Cannot have more than 10 antonyms"),
-
+      .optional()
+      .isArray({max: 10}).withMessage("Cannot have more than 10 antonyms"),
   body("collocations")
-    .optional()
-    .isArray({ max: 10 }).withMessage("Cannot have more than 10 collocations"),
-
+      .optional()
+      .isArray({max: 10}).withMessage("Cannot have more than 10 collocations"),
   body("relatedWords")
-    .optional()
-    .isArray({ max: 10 }).withMessage("Cannot have more than 10 related words"),
-
+      .optional()
+      .isArray({max: 10}).withMessage("Cannot have more than 10 related words"),
   body("note")
-    .optional()
-    .isLength({ max: 500 }).withMessage("Note cannot exceed 500 characters"),
+      .optional()
+      .isLength({max: 500}).withMessage("Note cannot exceed 500 characters"),
+
+  // ✅ THÊM 2 DÒNG NÀY
+  body("imageUrl")
+      .optional()
+      .isString().withMessage("Image URL must be a string")
+      .isURL().withMessage("Image URL must be a valid URL"),
+  body("audioUrl")
+      .optional()
+      .isString().withMessage("Audio URL must be a string")
+      .isURL().withMessage("Audio URL must be a valid URL"),
 ];
 
 // ─── Search & Filter Query Params ─────────────────────────────────

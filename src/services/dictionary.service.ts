@@ -15,7 +15,13 @@ export async function lookupWord(word: string) {
 
     // 1. Check cache
     if (dictionaryCache.has(cleanWord)) {
-        return dictionaryCache.get(cleanWord);
+        const cached = dictionaryCache.get(cleanWord);
+        // ✅ Check TTL - nếu expired thì xóa và gọi lại API
+        if (Date.now() - cached.cachedAt < CACHE_TTL) {
+            return cached.data;  // ← Trả về data trực tiếp
+        } else {
+            dictionaryCache.delete(cleanWord);  // Xóa cache expired
+        }
     }
 
     try {
@@ -28,6 +34,7 @@ export async function lookupWord(word: string) {
         if (res.status === 404) {
             throw new AppError("Word not found in dictionary", HttpStatus.NOT_FOUND);
         }
+
         // 3. Chuẩn hóa response (chỉ lấy field cần thiết)
         const data = res.data[0];
         const phonetics = data.phonetics || [];
@@ -46,12 +53,13 @@ export async function lookupWord(word: string) {
             sourceUrl: data.sourceUrls?.[0] || ""
         };
 
-        // 4. Lưu cache
-        dictionaryCache.set(cleanWord, { data: normalized, cachedAt: Date.now() });
+        // 4. Lưu cache - ✅ Lưu với metadata để check TTL
+        dictionaryCache.set(cleanWord, {
+            data: normalized,  // ← Data ở trong
+            cachedAt: Date.now()  // ← Metadata để check TTL
+        });
 
-        // 5. (Optional) Lưu vào DB nếu muốn làm từ điển riêng
-        // await VocabularyService.createOrUpdateFromDictionary(normalized);
-
+        // 5. ✅ Trả về normalized trực tiếp (consistent với cache hit)
         return normalized;
     } catch (err: any) {
         if (err instanceof AppError) throw err;

@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import { VocabularySet } from "../models/VocabularySet";
 import { Word } from "../models/Word";
 import { LearningProgress } from "../models/LearningProgress";
@@ -85,8 +85,8 @@ function mapWordToResponse(w: any): WordResponse {
     collocations: w.collocations ?? [],
     relatedWords: w.relatedWords ?? [],
     note: w.note,
-    imageUrl: w.imageUrl,
-    audioUrl: w.audioUrl,
+    imageUrl: w.imageUrl || '',      // ✅ THÊM || ''
+    audioUrl: w.audioUrl || '',      // ✅ THÊM || ''
   };
 }
 
@@ -247,12 +247,22 @@ export async function getUserSets(
  * TODO (Người 1): Implement body của function này
  */
 export async function getPublicSets(
-  filters: VocabSetFilters,
+    userId: string,  // ✅ Thêm param userId
+    filters: VocabSetFilters,
 ): Promise<PaginatedResponse<VocabSetResponse>> {
   const { page = 1, limit = 12 } = filters;
   const skip = (page - 1) * limit;
-  const match = buildSetFilter(filters, { isPublic: true, isDeleted: { $ne: true } });
-  const sort  = buildSortOrder(filters.sortBy);
+
+  // ✅ Build filter cơ bản
+  const match = buildSetFilter(filters, {
+    isPublic: true,
+    isDeleted: { $ne: true }
+  });
+
+  // ✅ QUAN TRỌNG: Loại trừ sets của chính user
+  match.userId = { $ne: new Types.ObjectId(userId) };
+
+  const sort = buildSortOrder(filters.sortBy);
 
   const [rawSets, total] = await Promise.all([
     VocabularySet.find(match).sort(sort).skip(skip).limit(limit).lean(),
@@ -367,9 +377,15 @@ export async function deleteSet(setId: string, userId: string): Promise<void> {
  * TODO (Người 1): Implement body của function này
  */
 export async function clonePublicSet(
-  sourceSetId: string,
-  userId: string,
+    sourceSetId: string,
+    userId: string,
 ): Promise<VocabSetResponse> {
+  // 1. Validate ObjectId
+  if (!Types.ObjectId.isValid(sourceSetId)) {
+    throw new AppError("Invalid set ID", HttpStatus.BAD_REQUEST, ErrorCodes.VALIDATION_FAILED);
+  }
+
+  // 2. Tìm set gốc
   const sourceSet = await VocabularySet.findOne({
     _id: sourceSetId,
     isDeleted: { $ne: true },
@@ -379,36 +395,70 @@ export async function clonePublicSet(
     throw new AppError("Public set not found", HttpStatus.NOT_FOUND, ErrorCodes.VALIDATION_FAILED);
   }
 
-  const newSet = await new VocabularySet({
-    userId: new Types.ObjectId(userId),
-    name: sourceSet.name,
-    description: sourceSet.description,
-    category: sourceSet.category,
-    level: sourceSet.level,
-    colorTheme: sourceSet.colorTheme,
-    tags: sourceSet.tags,
-    isPublic: false,
-    clonedFrom: sourceSet._id,
-    totalWords: 0,
-    learnerCount: 0,
-  }).save();
+  const userObjectId = new Types.ObjectId(userId);
+  const isOwner = sourceSet.userId.equals(userObjectId);
 
-  const sourceWords = await Word.find({ setId: sourceSet._id, isDeleted: { $ne: true } }).lean();
-  if (sourceWords.length > 0) {
-    const clonedWords = sourceWords.map(({ _id, __v, createdAt, updatedAt, setId, ...word }) => ({
-      ...word,
-      setId: newSet._id,
-      isDeleted: false,
-    }));
+  // 3. Dùng Transaction để đảm bảo atomic
+  const session = await mongoose.startSession();
+  session.startTransaction();
 
-    await Word.insertMany(clonedWords);
-    await VocabularySet.findByIdAndUpdate(newSet._id, { $set: { totalWords: sourceWords.length } });
-    newSet.totalWords = sourceWords.length;
+  try {
+    // 4. Tạo bản sao của Set
+    const newSet = await new VocabularySet({
+      userId: userObjectId,
+      name: sourceSet.name,
+      description: sourceSet.description,
+      category: sourceSet.category,
+      level: sourceSet.level,
+      colorTheme: sourceSet.colorTheme,
+      tags: sourceSet.tags,
+      isPublic: false,
+      clonedFrom: sourceSet._id,
+      totalWords: 0,
+      learnerCount: 0,
+    }).save({ session });
+
+    // 5. Copy toàn bộ Word từ set gốc
+    const sourceWords = await Word.find({
+      setId: sourceSet._id,
+      isDeleted: { $ne: true },
+    }).session(session).lean();
+
+    if (sourceWords.length > 0) {
+      const clonedWords = sourceWords.map(({ _id, __v, createdAt, updatedAt, setId, ...word }) => ({
+        ...word,
+        setId: newSet._id,
+        isDeleted: false,
+      }));
+
+      await Word.insertMany(clonedWords, { session });
+      await VocabularySet.findByIdAndUpdate(
+          newSet._id,
+          { $set: { totalWords: sourceWords.length } },
+          { session }
+      );
+      newSet.totalWords = sourceWords.length;
+    }
+
+    // 6. Tăng learnerCount của set gốc (chỉ khi người khác clone, không tăng nếu tự clone)
+    if (!isOwner) {
+      await VocabularySet.findByIdAndUpdate(
+          sourceSetId,
+          { $inc: { learnerCount: 1 } },
+          { session }
+      );
+    }
+
+    // 7. Commit transaction
+    await session.commitTransaction();
+
+    return mapSetToResponse(newSet.toObject());
+  } catch (error) {
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
   }
-
-  await VocabularySet.findByIdAndUpdate(sourceSetId, { $inc: { learnerCount: 1 } });
-
-  return mapSetToResponse(newSet.toObject());
 }
 
 // ─── Word Services ───────────────────────────────────────────────────────────
